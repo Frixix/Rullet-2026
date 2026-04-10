@@ -38,4 +38,5 @@ La aplicación ahora se ejecuta íntegramente en el navegador. No hay backend ni
 
 - No se mantiene ningún servidor Node/Express. El directorio `backend/` se eliminó porque ya no se usa.  
 - Todo el flujo es local, lo que evita esperas de red y facilita experimentar directamente con HTML/CSS/JS.  
+- La sección de balance incluye ahora un diagrama tipo velas con ejes, valores negativos y una línea cero que cambia a rojo cuando el saldo está debajo de 0, para que veas exactamente cuándo ganas o pierdes según la apuesta activa.
 - Si más adelante quieres añadir almacenamiento remoto o colaboración, considera conectar estos hooks con un servicio ligero, pero la base lógica seguirá estando en `docs/main.js`.

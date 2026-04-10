@@ -54,6 +54,7 @@ class RuletaPredictor {
     this.nivelMartingala = 0;
     this.apuestaActual = config.valorApuestaBase;
     this.ultimoResultado = null;
+    this.balanceTimeline = [];
   }
 
   loadState(state) {
@@ -68,6 +69,7 @@ class RuletaPredictor {
     this.apuestaActual =
       typeof state.apuestaActual === 'number' ? state.apuestaActual : this.config.valorApuestaBase;
     this.ultimoResultado = state.ultimoResultado || null;
+    this.balanceTimeline = Array.isArray(state.balanceTimeline) ? state.balanceTimeline : [];
   }
 
   serializeState() {
@@ -80,7 +82,8 @@ class RuletaPredictor {
       saldoMartingala: this.saldoMartingala,
       nivelMartingala: this.nivelMartingala,
       apuestaActual: this.apuestaActual,
-      ultimoResultado: this.ultimoResultado
+      ultimoResultado: this.ultimoResultado,
+      balanceTimeline: this.balanceTimeline
     };
   }
 
@@ -222,11 +225,41 @@ class RuletaPredictor {
     return cambio;
   }
 
+  recordBalanceStep(previousBalance) {
+    const open = previousBalance;
+    const close = this.saldoMartingala;
+    const high = Math.max(open, close);
+    const low = Math.min(open, close);
+    this.balanceTimeline.push({ open, high, low, close });
+    if (this.balanceTimeline.length > 200) {
+      this.balanceTimeline.shift();
+    }
+  }
+
+  getBalanceTimeline() {
+    return this.balanceTimeline;
+  }
+
+  getBalanceExtremes() {
+    if (!this.balanceTimeline.length) {
+      return { high: 0, low: 0 };
+    }
+    let high = -Infinity;
+    let low = Infinity;
+    this.balanceTimeline.forEach((entry) => {
+      if (entry.high > high) high = entry.high;
+      if (entry.low < low) low = entry.low;
+    });
+    return { high, low };
+  }
+
   agregarNumero(numero) {
     const color = this.getColor(numero);
+    const previousBalance = this.saldoMartingala;
     const resultado = this.analizarPatron(numero);
     const martingala = this.procesarMartingala(resultado);
-
+    this.recordBalanceStep(previousBalance);
+    
     const registro = {
       numero,
       color,
@@ -317,7 +350,16 @@ const elements = {
   modoMartingala: document.getElementById('modoMartingala'),
   valorApuestaBase: document.getElementById('valorApuestaBase'),
   tipoRuleta: document.getElementById('tipoRuleta'),
-  tipoJuego: document.getElementById('tipoJuego')
+  tipoJuego: document.getElementById('tipoJuego'),
+  balanceCanvas: document.getElementById('balanceCanvas'),
+  balanceHigh: document.getElementById('balanceHigh'),
+  balanceLow: document.getElementById('balanceLow'),
+  balanceDiff: document.getElementById('balanceDiff'),
+  balanceCurrent: document.getElementById('balanceCurrent'),
+  zoomRange: document.getElementById('zoomRange'),
+  zoomValue: document.getElementById('zoomValue'),
+  hoverLaunch: document.getElementById('hoverLaunch'),
+  hoverSaldo: document.getElementById('hoverSaldo')
 };
 elements.simulationForm = document.getElementById('simulationForm');
 elements.simulationFile = document.getElementById('simulationFile');
@@ -362,6 +404,258 @@ const renderSimulationSuggestions = () => {
     li.textContent = tip;
     elements.suggestionsList.appendChild(li);
   });
+};
+
+const chartState = {
+  windowSize: Number(elements.zoomRange?.value) || 60,
+  hoverIndex: null,
+  lastRender: null,
+  lastState: null
+};
+
+const updateZoomLabel = (value) => {
+  if (elements.zoomValue) {
+    elements.zoomValue.textContent = value.toString();
+  }
+};
+
+const updateHoverInfo = (entry, absoluteIndex = null) => {
+  if (!elements.hoverLaunch || !elements.hoverSaldo) return;
+  if (!entry) {
+    elements.hoverLaunch.textContent = 'Lanzamiento: —';
+    elements.hoverSaldo.textContent = 'Saldo actual: —';
+    return;
+  }
+  elements.hoverLaunch.textContent = `Lanzamiento: ${absoluteIndex ?? '—'}`;
+  elements.hoverSaldo.textContent = `Saldo actual: $${entry.close.toLocaleString('es-CO')}`;
+};
+
+const handleZoomChange = () => {
+  if (!elements.zoomRange) return;
+  chartState.windowSize = Number(elements.zoomRange.value) || 60;
+  renderBalanceChart();
+};
+
+const handleChartHover = (event) => {
+  const render = chartState.lastRender;
+  const state = chartState.lastState;
+  const canvas = elements.balanceCanvas;
+  if (!canvas || !render || !state) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = Math.max(0, Math.min(render.width, event.clientX - rect.left));
+  const { padding, chartWidth, timelineLength } = render;
+  if (!timelineLength) {
+    chartState.hoverIndex = null;
+    updateHoverInfo(null);
+    return;
+  }
+  const relativeX = Math.max(0, Math.min(chartWidth, x - padding));
+  const index =
+    timelineLength > 1
+      ? Math.round((relativeX / chartWidth) * (timelineLength - 1))
+      : 0;
+  chartState.hoverIndex = Math.max(0, Math.min(timelineLength - 1, index));
+  const entry = state.timeline[chartState.hoverIndex];
+  updateHoverInfo(entry, state.startIndex + chartState.hoverIndex + 1);
+  renderBalanceChart();
+};
+
+const handleChartLeave = () => {
+  chartState.hoverIndex = null;
+  updateHoverInfo(null);
+  renderBalanceChart();
+};
+
+const updateBalanceSummary = () => {
+  if (!elements.balanceHigh) return;
+  const { high, low } = predictor.getBalanceExtremes();
+  elements.balanceHigh.textContent = `$${high.toLocaleString('es-CO')}`;
+  elements.balanceLow.textContent = `$${low.toLocaleString('es-CO')}`;
+  elements.balanceDiff.textContent = `$${(high - low).toLocaleString('es-CO')}`;
+  if (elements.balanceCurrent) {
+    const current = predictor.saldoMartingala;
+    elements.balanceCurrent.textContent = `$${current.toLocaleString('es-CO')}`;
+    elements.balanceCurrent.style.color =
+      current >= 0 ? 'rgb(34, 197, 94)' : 'rgb(239, 68, 68)';
+  }
+};
+
+const renderBalanceChart = () => {
+  const canvas = elements.balanceCanvas;
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const width = rect.width;
+  const height = rect.height;
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, width, height);
+
+  const timeline = predictor.getBalanceTimeline();
+  const effectiveWindow = Math.max(
+    Math.min(chartState.windowSize, Math.max(5, timeline.length)),
+    5
+  );
+  const startIndex = Math.max(0, timeline.length - effectiveWindow);
+  const visibleTimeline = timeline.slice(startIndex);
+  const visibleLength = visibleTimeline.length;
+  if (!visibleLength) {
+    chartState.hoverIndex = null;
+  } else {
+    chartState.hoverIndex = Math.min(
+      Math.max(chartState.hoverIndex ?? 0, 0),
+      visibleLength - 1
+    );
+  }
+  chartState.lastState = { timeline: visibleTimeline, startIndex };
+  chartState.lastRender = {
+    width,
+    height,
+    padding: 16,
+    chartWidth: width - 32,
+    chartHeight: height - 32,
+    timelineLength: visibleLength
+  };
+  updateZoomLabel(visibleLength);
+
+  if (!visibleLength) {
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.font = '13px "Space Grotesk", sans-serif';
+    ctx.fillText('Carga tiradas para ver el saldo en acción', 16, height / 2);
+    return;
+  }
+
+  const highs = visibleTimeline.map((entry) => entry.high);
+  const lows = visibleTimeline.map((entry) => entry.low);
+  const maxValue = Math.max(...highs, 0);
+  const minValue = Math.min(...lows, 0);
+  const valueRange = Math.max(1, maxValue - minValue);
+  const { padding, chartWidth, chartHeight } = chartState.lastRender;
+  const stepX = visibleLength > 1 ? chartWidth / (visibleLength - 1) : chartWidth;
+  const candleWidth = Math.min(18, Math.max(6, stepX * 0.6));
+
+  ctx.fillStyle = 'rgba(3, 3, 3, 0.65)';
+  ctx.fillRect(0, 0, width, height);
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+  ctx.lineWidth = 1;
+  const priceTicks = 5;
+  for (let i = 0; i <= priceTicks; i++) {
+    const y = padding + (chartHeight / priceTicks) * i;
+    ctx.beginPath();
+    ctx.moveTo(padding, y);
+    ctx.lineTo(width - padding, y);
+    ctx.stroke();
+    const value = maxValue - (valueRange / priceTicks) * i;
+    ctx.fillStyle = '#cfd2e9';
+    ctx.font = '11px "Space Grotesk", sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`$${Math.round(value)}`, padding - 10, y);
+  }
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+  ctx.beginPath();
+  ctx.moveTo(padding, padding);
+  ctx.lineTo(padding, height - padding);
+  ctx.lineTo(width - padding, height - padding);
+  ctx.stroke();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillText('Lanzamientos', width / 2, height - 14);
+
+  const timeTicks = Math.min(visibleLength, 6);
+  for (let i = 0; i <= timeTicks; i++) {
+    const idx = timeTicks === 0 ? 0 : Math.round((visibleLength - 1) * (i / timeTicks));
+    const x = padding + idx * (visibleLength === 1 ? stepX : stepX);
+    ctx.beginPath();
+    ctx.moveTo(x, height - padding);
+    ctx.lineTo(x, height - padding + 6);
+    ctx.stroke();
+    const label = startIndex + idx + 1;
+    ctx.fillStyle = '#cfd2e9';
+    ctx.font = '11px "Space Grotesk", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(label.toString(), x, height - padding + 8);
+  }
+
+  const currentBalance = predictor.saldoMartingala;
+  const showZeroLine = minValue <= 0 && maxValue >= 0;
+  if (showZeroLine) {
+    const yZero =
+      padding + chartHeight - ((0 - minValue) / valueRange) * chartHeight;
+    ctx.strokeStyle =
+      currentBalance >= 0 ? 'rgba(34, 197, 94, 0.9)' : 'rgba(239, 68, 68, 0.9)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(padding, yZero);
+    ctx.lineTo(width - padding, yZero);
+    ctx.stroke();
+  }
+
+  visibleTimeline.forEach((entry, index) => {
+    const x =
+      padding +
+      (visibleLength === 1 ? chartWidth / 2 : Math.min(chartWidth, index * stepX));
+    const yHigh =
+      padding + chartHeight - ((entry.high - minValue) / valueRange) * chartHeight;
+    const yLow =
+      padding + chartHeight - ((entry.low - minValue) / valueRange) * chartHeight;
+    const yOpen =
+      padding + chartHeight - ((entry.open - minValue) / valueRange) * chartHeight;
+    const yClose =
+      padding + chartHeight - ((entry.close - minValue) / valueRange) * chartHeight;
+    const positive = entry.close >= entry.open;
+    const color = positive ? '#22c55e' : '#ef4444';
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x, yHigh);
+    ctx.lineTo(x, yLow);
+    ctx.stroke();
+
+    const bodyTop = Math.min(yOpen, yClose);
+    const bodyHeight = Math.max(3, Math.abs(yClose - yOpen));
+    ctx.fillStyle = positive ? 'rgba(34, 149, 86, 0.9)' : 'rgba(239, 68, 68, 0.9)';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
+    ctx.strokeRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
+
+    if (chartState.hoverIndex === index) {
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(padding, bodyTop);
+      ctx.lineTo(width - padding, bodyTop);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  });
+
+  const hoverEntry =
+    chartState.hoverIndex !== null && visibleLength
+      ? visibleTimeline[chartState.hoverIndex]
+      : null;
+  if (hoverEntry) {
+    const yHover =
+      padding +
+      chartHeight -
+      ((hoverEntry.close - minValue) / valueRange) * chartHeight;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 4]);
+    ctx.beginPath();
+    ctx.moveTo(padding, yHover);
+    ctx.lineTo(width - padding, yHover);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
 };
 
 const handleSimulationUpload = (event) => {
@@ -539,6 +833,8 @@ const refreshUI = () => {
   const stats = predictor.getEstadisticas();
   renderStats(stats);
   renderHistory(predictor.historialNumeros);
+  renderBalanceChart();
+  updateBalanceSummary();
   const payload = predictor.ultimoResultado;
   if (payload) {
     renderLatestResult(payload);
@@ -647,6 +943,23 @@ const init = () => {
     elements.simulationForm.addEventListener('submit', handleSimulationUpload);
   }
   renderSimulationSuggestions();
+  window.addEventListener('resize', renderBalanceChart);
+  if (elements.zoomRange) {
+    elements.zoomRange.addEventListener('input', handleZoomChange);
+    elements.zoomRange.value = chartState.windowSize.toString();
+  }
+  if (elements.balanceCanvas) {
+    elements.balanceCanvas.addEventListener('mousemove', handleChartHover);
+    elements.balanceCanvas.addEventListener('mouseleave', handleChartLeave);
+    elements.balanceCanvas.addEventListener('touchmove', (event) => {
+      handleChartHover(event.touches?.[0] || event);
+    });
+    elements.balanceCanvas.addEventListener('touchstart', (event) => {
+      handleChartHover(event.touches?.[0] || event);
+    });
+    elements.balanceCanvas.addEventListener('touchend', handleChartLeave);
+  }
+  updateHoverInfo(null);
 };
 
 document.addEventListener('DOMContentLoaded', init);

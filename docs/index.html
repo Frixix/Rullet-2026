@@ -35,6 +35,49 @@
       </header>
 
     <main>
+      <section class="panel panel--chart">
+        <header class="panel__header">
+          <div>
+            <p class="eyebrow">Saldo martingala</p>
+            <h2>Diagrama estilo trading</h2>
+          </div>
+        </header>
+        <p class="panel__description">
+          Cada lanzamiento que activa la martingala se refleja aquí como una vela; la parte
+          superior marca el pico, la inferior la caída, y el cuerpo indica si el saldo subió o
+          bajó respecto al paso anterior.
+        </p>
+        <div class="chart-wrapper">
+          <canvas id="balanceCanvas"></canvas>
+        </div>
+        <div class="chart-summary">
+          <div>
+            <span>Máximo saldo</span>
+            <strong id="balanceHigh">$0</strong>
+          </div>
+          <div>
+            <span>Mínimo saldo</span>
+            <strong id="balanceLow">$0</strong>
+          </div>
+          <div>
+            <span>Rango</span>
+            <strong id="balanceDiff">$0</strong>
+          </div>
+          <div>
+            <span>Saldo actual</span>
+            <strong id="balanceCurrent">$0</strong>
+          </div>
+        </div>
+        <div class="chart-controls">
+          <label for="zoomRange">Zoom: <span id="zoomValue">60</span> tiradas</label>
+          <input id="zoomRange" type="range" min="10" max="200" value="60" step="5" />
+        </div>
+        <div class="chart-hover-info">
+          <span id="hoverLaunch">Lanzamiento: —</span>
+          <span id="hoverSaldo">Saldo actual: —</span>
+        </div>
+      </section>
+
       <section class="grid grid--two">
         <article class="panel panel--config">
             <div class="panel__header">
