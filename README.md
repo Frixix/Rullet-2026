@@ -1,62 +1,41 @@
-# Ruleta Predictor
+# Ruleta Predictor (Standalone)
 
-Backend y frontend para capturar los resultados de una ruleta europea y seguir patrones C‑D‑E con apoyo opcional de Martingala.
+La aplicación ahora se ejecuta íntegramente en el navegador. No hay backend ni dependencias externas: todo el flujo (patrones C‑D‑E, martingala, historial y estadísticas) vive en `docs/main.js` y se guarda automáticamente mediante `localStorage`.
 
-## Arquitectura
-- **backend/**: API Express que expone la lógica del predictor (`RuletaPredictor`) y mantiene el historial, estadísticas y configuración en memoria.
-- **frontend/**: Aplicación React (CRA + Tailwind) que consume los endpoints del backend, muestra estadísticas, historial y permite ingresar números o modificar parámetros.
+## Estructura del proyecto
 
-## Prerrequisitos
-1. Node.js 18+ (incluye npm).
-2. `npm` (se instala con Node.js).
+- `docs/index.html`: entrada única que agrupa hero, configuración, captura de números, estadísticas, historial y bitácora.
+- `docs/styles.css`: sistema de cuadrículas, tarjetas, barras de color y modal que mantienen la UI organizada sin depender de frameworks.
+- `docs/main.js`: implementa la clase `RuletaPredictor` (transporte directo de la lógica del backend anterior), administra el estado local y actualiza toda la UI. Persiste el estado bajo la clave `ruletaPredictorState`.
 
-## Instalación
+## Cómo ejecutar
 
-### Backend
-```bash
-cd backend
-npm install
-```
+1. **Abrir el archivo**  
+   Simplemente abre `docs/index.html` en cualquier navegador moderno. Como no hacemos ninguna petición de red ni uso de módulos remotos, funciona con un doble clic.
 
-Entrena y prueba el predictor con:
+2. **(Opcional) Ejecutar desde un servidor local**  
+   Si prefieres un entorno servidor (para evitar limitaciones del protocolo `file://`), usa un servicio estático mínimo:
+   ```bash
+   cd docs
+   npx http-server -p 8080
+   # o
+   python -m http.server 8000
+   ```
+   Luego visita `http://localhost:8080` o el puerto elegido.
 
-| Script | Descripción |
-| --- | --- |
-| `npm run dev` | Arranca `nodemon` para desarrollo |
-| `npm start` | Inicia el servidor Express (modo producción) |
+3. **Interactuar con la app**  
+   - El panel de configuración abre un modal donde eliges ruleta, tipo de juego y parámetros de martingala.  
+   - Registra números entre `0` y `36` y observa el historial, los totales y la bitácora.  
+   - El botón “Reiniciar sesión” borra el historial y reinicia la lógica (también se puede limpiar directamente desde las herramientas del navegador vaciando `localStorage`).
 
-### Frontend
-```bash
-cd frontend
-npm install
-```
+## Persistencia local
 
-Los scripts disponibles (CRA + Tailwind/PostCSS):
+- El estado completo (historial, avances del patrón, martingala, configuración y último resultado) se guarda automáticamente en `localStorage` bajo la clave `ruletaPredictorState`.
+- Si quieres compartir o versionar el estado, puedes copiar el JSON desde las herramientas de desarrollo e importarlo manualmente.
+- Para ver cómo se guarda el patrón lógicamente, revisa `docs/main.js`: se copiaron los mismos mapas `RULETA_COLORES`, `PATRON_COLORES` y los motores de análisis.
 
-| Script | Descripción |
-| --- | --- |
-| `npm start` | Servidor de desarrollo React (puerto 3000) |
-| `npm run build` | Genera la carpeta `build/` optimizada |
-| `npm test` | Ejecuta tests (configuración CRA por defecto) |
-| `npm run eject` | Eject opcional de CRA (no recomendado si no entiende los riesgos) |
+## Notas
 
-
-## API principal (http://localhost:5000/api)
-
-| Metodo | Ruta | Uso |
-| --- | --- | --- |
-| `GET` | `/estadisticas` | Devuelve totales, distribución de colores, top 15 números, saldo Martingala y configuración |
-| `GET` | `/historial` | Lista completa del historial con timestamps |
-| `POST` | `/numero` | Recibe `{ numero: 0..36 }`, ejecuta `RuletaPredictor.agregarNumero()` y retorna resultado + estadísticas actualizadas |
-| `POST` | `/config` | Actualiza la configuración del predictor en memoria |
-| `POST` | `/reset` | Reinicia historial, patrón, martingala y apuesta actual |
-
-## Uso básico
-1. Levanta el backend (`npm run dev`).
-2. Levanta el frontend (`npm start`). La UI se comunica con el backend en `http://localhost:5000/api`.
-3. Registra números en el panel izquierdo, ajusta la configuración si lo deseas y visualiza estadísticas e historial.
-4. Reinicia la sesión para limpiar el historial o exporta los datos (separador TODO).
-
-## Notas importantes
-- La configuración `usarMartingala` activa cálculo de saldo y niveles. Por el momento la exportación CSV solo muestra notificación en el frontend.
-- Todo el estado se guarda en memoria. Para persistencia real hay que conectar persistencia o mover la lógica a un almacenamiento compartido.
+- No se mantiene ningún servidor Node/Express. El directorio `backend/` se eliminó porque ya no se usa.  
+- Todo el flujo es local, lo que evita esperas de red y facilita experimentar directamente con HTML/CSS/JS.  
+- Si más adelante quieres añadir almacenamiento remoto o colaboración, considera conectar estos hooks con un servicio ligero, pero la base lógica seguirá estando en `docs/main.js`.

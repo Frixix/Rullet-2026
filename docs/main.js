@@ -1,4 +1,284 @@
-const API_URL = 'http://localhost:5000/api';
+const STORAGE_KEY = 'ruletaPredictorState';
+const DEFAULT_LATEST_MESSAGE = 'Ningún número registrado aún.';
+
+const RULETA_COLORES = {
+  0: 'verde',
+  1: 'rojo', 2: 'negro', 3: 'rojo', 4: 'negro', 5: 'rojo', 6: 'negro',
+  7: 'rojo', 8: 'negro', 9: 'rojo', 10: 'negro', 11: 'negro', 12: 'rojo',
+  13: 'negro', 14: 'rojo', 15: 'negro', 16: 'rojo', 17: 'negro', 18: 'rojo',
+  19: 'rojo', 20: 'negro', 21: 'rojo', 22: 'negro', 23: 'rojo', 24: 'negro',
+  25: 'rojo', 26: 'negro', 27: 'rojo', 28: 'negro', 29: 'negro', 30: 'rojo',
+  31: 'negro', 32: 'rojo', 33: 'negro', 34: 'rojo', 35: 'negro', 36: 'rojo'
+};
+
+const PATRON_COLORES = {
+  0: ['verde', 'verde', 'verde'],
+  1: ['rojo', 'rojo', 'negro'], 2: ['rojo', 'rojo', 'rojo'], 3: ['rojo', 'negro', 'rojo'],
+  4: ['negro', 'negro', 'negro'], 5: ['rojo', 'negro', 'rojo'], 6: ['negro', 'negro', 'negro'],
+  7: ['rojo', 'negro', 'rojo'], 8: ['negro', 'negro', 'rojo'], 9: ['rojo', 'negro', 'rojo'],
+  10: ['negro', 'negro', 'rojo'], 11: ['negro', 'negro', 'rojo'], 12: ['rojo', 'rojo', 'negro'],
+  13: ['negro', 'rojo', 'negro'], 14: ['rojo', 'rojo', 'negro'], 15: ['negro', 'rojo', 'rojo'],
+  16: ['rojo', 'negro', 'rojo'], 17: ['negro', 'rojo', 'negro'], 18: ['rojo', 'negro', 'rojo'],
+  19: ['rojo', 'negro', 'rojo'], 20: ['negro', 'rojo', 'rojo'], 21: ['rojo', 'rojo', 'rojo'],
+  22: ['negro', 'rojo', 'rojo'], 23: ['rojo', 'negro', 'rojo'], 24: ['negro', 'rojo', 'negro'],
+  25: ['rojo', 'negro', 'rojo'], 26: ['negro', 'negro', 'rojo'], 27: ['rojo', 'rojo', 'negro'],
+  28: ['negro', 'negro', 'rojo'], 29: ['negro', 'negro', 'rojo'], 30: ['rojo', 'negro', 'rojo'],
+  31: ['negro', 'rojo', 'rojo'], 32: ['rojo', 'negro', 'rojo'], 33: ['negro', 'negro', 'rojo'],
+  34: ['rojo', 'rojo', 'rojo'], 35: ['negro', 'negro', 'negro'], 36: ['rojo', 'rojo', 'rojo']
+};
+
+class RuletaPredictor {
+  constructor() {
+    this.resetState();
+  }
+
+  getDefaultConfig() {
+    return {
+      tipoRuleta: 'Física',
+      tipoJuego: 'Contra humanos',
+      usarMartingala: false,
+      modoMartingala: 1,
+      valorApuestaBase: 1000,
+      nivelesMartingala: [500, 1000, 2000, 4000, 8000, 16000]
+    };
+  }
+
+  resetState() {
+    const config = this.getDefaultConfig();
+    this.historialNumeros = [];
+    this.patronActivo = false;
+    this.patronActual = [];
+    this.etapaActual = 0;
+    this.config = { ...config };
+    this.saldoMartingala = 0;
+    this.nivelMartingala = 0;
+    this.apuestaActual = config.valorApuestaBase;
+    this.ultimoResultado = null;
+  }
+
+  loadState(state) {
+    if (!state) return;
+    this.historialNumeros = Array.isArray(state.historialNumeros) ? state.historialNumeros : [];
+    this.patronActivo = state.patronActivo ?? false;
+    this.patronActual = Array.isArray(state.patronActual) ? state.patronActual : [];
+    this.etapaActual = state.etapaActual ?? 0;
+    this.config = { ...this.getDefaultConfig(), ...state.config };
+    this.saldoMartingala = state.saldoMartingala ?? 0;
+    this.nivelMartingala = state.nivelMartingala ?? 0;
+    this.apuestaActual =
+      typeof state.apuestaActual === 'number' ? state.apuestaActual : this.config.valorApuestaBase;
+    this.ultimoResultado = state.ultimoResultado || null;
+  }
+
+  serializeState() {
+    return {
+      historialNumeros: this.historialNumeros,
+      patronActivo: this.patronActivo,
+      patronActual: this.patronActual,
+      etapaActual: this.etapaActual,
+      config: this.config,
+      saldoMartingala: this.saldoMartingala,
+      nivelMartingala: this.nivelMartingala,
+      apuestaActual: this.apuestaActual,
+      ultimoResultado: this.ultimoResultado
+    };
+  }
+
+  getColor(numero) {
+    return RULETA_COLORES[numero] || 'desconocido';
+  }
+
+  analizarPatron(numero) {
+    if (numero === 0) {
+      this.patronActivo = false;
+      this.patronActual = [];
+      this.etapaActual = 0;
+      return { mensaje: 'Cayó 0. El patrón se reinicia automáticamente.', acierto: null };
+    }
+
+    const colorReal = this.getColor(numero);
+
+    if (!PATRON_COLORES[numero]) {
+      this.patronActivo = false;
+      this.patronActual = [];
+      this.etapaActual = 0;
+      return { mensaje: `Número ${numero} sin patrón definido. Se reinicia.`, acierto: null };
+    }
+
+    if (!this.patronActivo) {
+      this.patronActual = [...PATRON_COLORES[numero]];
+      this.patronActivo = true;
+      this.etapaActual = 0;
+      const esperado = this.patronActual[this.etapaActual];
+
+      if (colorReal === esperado) {
+        this.etapaActual++;
+        return {
+          mensaje: `Patrón activado con número ${numero}. Acierto en etapa C. Esperando etapa D...`,
+          acierto: true,
+          etapa: 'C',
+          siguienteEsperado: this.patronActual[this.etapaActual]
+        };
+      }
+
+      this.patronActivo = false;
+      this.patronActual = [];
+      this.etapaActual = 0;
+      return {
+        mensaje: `Patrón activado con número ${numero}. Fallo en etapa C. Se reinicia.`,
+        acierto: false,
+        etapa: 'C'
+      };
+    }
+
+    if (this.etapaActual >= 3) {
+      this.patronActivo = false;
+      this.patronActual = [];
+      this.etapaActual = 0;
+      return { mensaje: 'El patrón ya había finalizado. Se reinicia.', acierto: null };
+    }
+
+    const esperado = this.patronActual[this.etapaActual];
+    const letras = ['C', 'D', 'E'];
+
+    if (colorReal === esperado) {
+      this.etapaActual++;
+      if (this.etapaActual === 3) {
+        this.patronActivo = false;
+        this.patronActual = [];
+        this.etapaActual = 0;
+        return {
+          mensaje: '✅ Acierto en etapa E. ¡Patrón completo exitoso! Se reinicia.',
+          acierto: true,
+          etapa: 'E',
+          completo: true
+        };
+      }
+      return {
+        mensaje: `✅ Acierto en etapa ${letras[this.etapaActual - 1]}. Próximo color esperado: ${this.patronActual[this.etapaActual]} (etapa ${letras[this.etapaActual]})`,
+        acierto: true,
+        etapa: letras[this.etapaActual - 1],
+        siguienteEsperado: this.patronActual[this.etapaActual]
+      };
+    }
+
+    const falloLetra = letras[this.etapaActual];
+    const mensaje = `❌ Fallo en etapa ${falloLetra}. Color esperado: ${esperado}. Salió: ${colorReal}. Se reinicia.`;
+    this.patronActivo = false;
+    this.patronActual = [];
+    this.etapaActual = 0;
+    return {
+      mensaje,
+      acierto: false,
+      etapa: falloLetra,
+      esperado,
+      salio: colorReal
+    };
+  }
+
+  procesarMartingala(resultado) {
+    if (!this.config.usarMartingala) return null;
+
+    const modo = this.config.modoMartingala;
+    const esAciertoE = resultado?.acierto === true && resultado?.etapa === 'E';
+    const esFalloE = resultado?.acierto === false && resultado?.etapa === 'E';
+
+    let cambio = null;
+
+    if (modo === 1) {
+      if (esAciertoE) {
+        this.saldoMartingala += 1;
+        cambio = { tipo: 'acierto', saldo: this.saldoMartingala };
+      } else if (esFalloE) {
+        this.saldoMartingala -= 1;
+        cambio = { tipo: 'fallo', saldo: this.saldoMartingala };
+      }
+    } else {
+      if (esAciertoE) {
+        this.saldoMartingala += this.apuestaActual;
+        this.nivelMartingala = 0;
+        this.apuestaActual = this.config.nivelesMartingala[this.nivelMartingala];
+        cambio = {
+          tipo: 'acierto',
+          saldo: this.saldoMartingala,
+          proximaApuesta: this.apuestaActual
+        };
+      } else if (esFalloE) {
+        this.saldoMartingala -= this.apuestaActual;
+        this.nivelMartingala++;
+        if (this.nivelMartingala >= this.config.nivelesMartingala.length) {
+          this.nivelMartingala = this.config.nivelesMartingala.length - 1;
+        }
+        this.apuestaActual = this.config.nivelesMartingala[this.nivelMartingala];
+        cambio = {
+          tipo: 'fallo',
+          saldo: this.saldoMartingala,
+          proximaApuesta: this.apuestaActual,
+          nivel: this.nivelMartingala
+        };
+      }
+    }
+
+    return cambio;
+  }
+
+  agregarNumero(numero) {
+    const color = this.getColor(numero);
+    const resultado = this.analizarPatron(numero);
+    const martingala = this.procesarMartingala(resultado);
+
+    const registro = {
+      numero,
+      color,
+      timestamp: new Date().toISOString(),
+      resultado
+    };
+
+    this.historialNumeros.push(registro);
+    this.ultimoResultado = { numero, color, resultado, martingala };
+
+    return {
+      ...this.ultimoResultado,
+      estadisticas: this.getEstadisticas()
+    };
+  }
+
+  getEstadisticas() {
+    const total = this.historialNumeros.length;
+    const colores = { rojo: 0, negro: 0, verde: 0 };
+    const frecuenciaNumeros = {};
+
+    this.historialNumeros.forEach((item) => {
+      colores[item.color] = (colores[item.color] || 0) + 1;
+      frecuenciaNumeros[item.numero] = (frecuenciaNumeros[item.numero] || 0) + 1;
+    });
+
+    const topNumeros = Object.entries(frecuenciaNumeros)
+      .map(([num, count]) => ({ numero: parseInt(num, 10), veces: count }))
+      .sort((a, b) => b.veces - a.veces)
+      .slice(0, 15);
+
+    return {
+      total,
+      colores,
+      topNumeros,
+      saldoMartingala: this.saldoMartingala,
+      config: this.config
+    };
+  }
+
+  actualizarConfig(nuevaConfig) {
+    this.config = { ...this.config, ...nuevaConfig };
+    if (this.config.usarMartingala) {
+      this.apuestaActual = this.config.valorApuestaBase;
+      this.saldoMartingala = 0;
+      this.nivelMartingala = 0;
+    }
+    return this.config;
+  }
+}
+
+const predictor = new RuletaPredictor();
 
 const elements = {
   numeroInput: document.getElementById('numeroInput'),
@@ -37,8 +317,11 @@ const elements = {
   modoMartingala: document.getElementById('modoMartingala'),
   valorApuestaBase: document.getElementById('valorApuestaBase'),
   tipoRuleta: document.getElementById('tipoRuleta'),
-  tipoJuego: document.getElementById('tipoJuego'),
+  tipoJuego: document.getElementById('tipoJuego')
 };
+elements.simulationForm = document.getElementById('simulationForm');
+elements.simulationFile = document.getElementById('simulationFile');
+elements.suggestionsList = document.getElementById('suggestionsList');
 
 let lastPayload = null;
 
@@ -58,6 +341,65 @@ const logMessage = (text, tone = 'info') => {
   }
 };
 
+const parseNumbersFromText = (text) => {
+  const matches = text.match(/-?\d+/g) || [];
+  return matches
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value) && value >= 0 && value <= 36);
+};
+
+const simulationSuggestions = [
+  'Carga secuencias largas para afinar el conteo C‑D‑E antes de activar martingala.',
+  'Cada cero reinicia el patrón; usa eso para evaluar qué tan seguido aparece.',
+  'Si ves muchos colores repetidos, analiza si es mejor usar martingala escalonada.'
+];
+
+const renderSimulationSuggestions = () => {
+  if (!elements.suggestionsList) return;
+  elements.suggestionsList.innerHTML = '';
+  simulationSuggestions.forEach((tip) => {
+    const li = document.createElement('li');
+    li.textContent = tip;
+    elements.suggestionsList.appendChild(li);
+  });
+};
+
+const handleSimulationUpload = (event) => {
+  event.preventDefault();
+  const file = elements.simulationFile?.files?.[0];
+  if (!file) {
+    alert('Selecciona un archivo .txt con los datos antes de procesar.');
+    return;
+  }
+
+  const reader = new FileReader();
+  setHeroLevel('Procesando simulación...');
+  reader.onload = (loadEvent) => {
+    const rawText = loadEvent.target?.result || '';
+    const parsedNumbers = parseNumbersFromText(rawText);
+    if (!parsedNumbers.length) {
+      logMessage('El archivo no contenía números válidos (0‑36).', 'error');
+      setHeroLevel('Nada procesado');
+      return;
+    }
+
+    parsedNumbers.forEach((numero) => predictor.agregarNumero(numero));
+    saveState();
+    refreshUI();
+    logMessage(
+      `Simulación cargada (${parsedNumbers.length} números). Revisa el historial y el saldo.`,
+      'success'
+    );
+    setHeroLevel('Simulación aplicada');
+    elements.simulationFile.value = '';
+  };
+  reader.onerror = () => {
+    logMessage('No se pudo leer el archivo seleccionado.', 'error');
+    setHeroLevel('Error leyendo archivo');
+  };
+  reader.readAsText(file);
+};
+
 const updateLastSync = () => {
   const time = new Date().toLocaleTimeString('es-CO');
   elements.lastSync.textContent = `Última actualización: ${time}`;
@@ -65,6 +407,25 @@ const updateLastSync = () => {
 
 const setHeroLevel = (text) => {
   elements.heroLevel.textContent = text;
+};
+
+const saveState = () => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(predictor.serializeState()));
+  } catch (error) {
+    console.warn('No se pudo guardar el estado localmente', error);
+  }
+};
+
+const loadState = () => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    predictor.loadState(JSON.parse(raw));
+  } catch (error) {
+    console.warn('Estado local corrupto, se iniciará desde cero', error);
+    predictor.resetState();
+  }
 };
 
 const renderConfig = (config) => {
@@ -119,7 +480,7 @@ const renderStats = (stats) => {
   if (!topNumeros.length) {
     elements.topNumbersList.innerHTML = '<li class="placeholder">Sin números populares aún.</li>';
   } else {
-    topNumeros.slice(0, 5).forEach((item, index) => {
+    topNumeros.slice(0, 5).forEach((item) => {
       const li = document.createElement('li');
       li.textContent = `#${item.numero} (${item.veces} veces)`;
       elements.topNumbersList.appendChild(li);
@@ -167,47 +528,28 @@ const renderLatestResult = (payload) => {
     if (martingala.proximaApuesta) {
       meta.push(`Próxima apuesta: ${martingala.proximaApuesta}`);
     }
+  } else {
+    meta.push(`Saldo Martingala: ${predictor.saldoMartingala}`);
   }
 
   elements.latestMeta.textContent = meta.join(' • ');
 };
 
-const fetchStats = async () => {
-  try {
-    const response = await fetch(`${API_URL}/estadisticas`);
-    if (!response.ok) throw new Error('No se pudo obtener estadísticas');
-    const stats = await response.json();
-    renderStats(stats);
-    setHeroLevel('Estadísticas sincronizadas');
-    updateLastSync();
-    return stats;
-  } catch (error) {
-    logMessage('Error cargando estadísticas: ' + error.message, 'error');
-    setHeroLevel('Error de sincronización');
+const refreshUI = () => {
+  const stats = predictor.getEstadisticas();
+  renderStats(stats);
+  renderHistory(predictor.historialNumeros);
+  const payload = predictor.ultimoResultado;
+  if (payload) {
+    renderLatestResult(payload);
+  } else {
+    elements.latestMessage.textContent = DEFAULT_LATEST_MESSAGE;
+    elements.latestMeta.textContent = '';
   }
+  updateLastSync();
 };
 
-const fetchHistory = async () => {
-  try {
-    const response = await fetch(`${API_URL}/historial`);
-    if (!response.ok) throw new Error('No se pudo obtener historial');
-    const historial = await response.json();
-    renderHistory(historial);
-    return historial;
-  } catch (error) {
-    logMessage('Error cargando historial: ' + error.message, 'error');
-  }
-};
-
-const refreshAll = async () => {
-  const stats = await fetchStats();
-  const historial = await fetchHistory();
-  if (stats && historial) {
-    logMessage('Datos sincronizados con el backend');
-  }
-};
-
-const handleNumberSubmit = async (event) => {
+const handleNumberSubmit = (event) => {
   event.preventDefault();
   const value = parseInt(elements.numeroInput.value, 10);
   if (Number.isNaN(value) || value < 0 || value > 36) {
@@ -218,78 +560,64 @@ const handleNumberSubmit = async (event) => {
   setHeroLevel('Procesando número...');
   elements.numeroInput.disabled = true;
   try {
-    const response = await fetch(`${API_URL}/numero`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ numero: value }),
-    });
-
-    if (!response.ok) {
-      const errorPayload = await response.json().catch(() => ({}));
-      throw new Error(errorPayload.error || 'Error del servidor');
-    }
-
-    const payload = await response.json();
+    const payload = predictor.agregarNumero(value);
     lastPayload = payload;
+    saveState();
     renderLatestResult(payload);
     renderStats(payload.estadisticas);
-    await fetchHistory();
-    logMessage(`Número ${value} enviado → ${payload.resultado?.mensaje}`, payload.resultado?.acierto ? 'success' : 'warn');
+    renderHistory(predictor.historialNumeros);
+    logMessage(
+      `Número ${value} registrado → ${payload.resultado?.mensaje}`,
+      payload.resultado?.acierto ? 'success' : 'warn'
+    );
     setHeroLevel('Número procesado');
   } catch (error) {
-    logMessage('Error al enviar número: ' + error.message, 'error');
-    setHeroLevel('Error enviando número');
+    logMessage('Error al registrar número: ' + error.message, 'error');
+    setHeroLevel('Error procesando número');
   } finally {
     elements.numeroInput.disabled = false;
     elements.numeroInput.value = '';
+    updateLastSync();
   }
 };
 
-const handleConfigSubmit = async (event) => {
+const handleConfigSubmit = (event) => {
   event.preventDefault();
   const payload = {
     tipoRuleta: elements.tipoRuleta.value,
     tipoJuego: elements.tipoJuego.value,
     usarMartingala: elements.usarMartingala.checked,
     modoMartingala: Number(elements.modoMartingala.value),
-    valorApuestaBase: Number(elements.valorApuestaBase.value) || 1000,
+    valorApuestaBase: Number(elements.valorApuestaBase.value) || 1000
   };
 
   setHeroLevel('Guardando configuración...');
   try {
-    const response = await fetch(`${API_URL}/config`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      throw new Error('No se pudo guardar la configuración');
-    }
-
-    const config = await response.json();
+    const config = predictor.actualizarConfig(payload);
+    saveState();
     renderConfig(config);
-    logMessage('Configuración actualizada');
+    renderStats(predictor.getEstadisticas());
+    logMessage('Configuración actualizada localmente', 'success');
     closeModal();
   } catch (error) {
     logMessage('Error guardando configuración: ' + error.message, 'error');
   } finally {
     setHeroLevel('Configuración lista');
+    updateLastSync();
   }
 };
 
-const resetSession = async () => {
+const resetSession = () => {
   setHeroLevel('Reiniciando sesión...');
-  try {
-    const response = await fetch(`${API_URL}/reset`, { method: 'POST' });
-    if (!response.ok) throw new Error('No se pudo reiniciar');
-    await refreshAll();
-    elements.latestMessage.textContent = 'Sesión reiniciada. Ingresa un número para reactivar el flujo.';
-    elements.latestMeta.textContent = '';
-    logMessage('Sesión reiniciada desde el UI', 'success');
-  } catch (error) {
-    logMessage('Error reiniciando: ' + error.message, 'error');
-  }
+  predictor.resetState();
+  saveState();
+  renderStats(predictor.getEstadisticas());
+  renderHistory(predictor.historialNumeros);
+  elements.latestMessage.textContent = 'Sesión reiniciada. Ingresa un número para reactivar el flujo.';
+  elements.latestMeta.textContent = '';
+  logMessage('Sesión reiniciada en el cliente', 'success');
+  setHeroLevel('Listo con estado limpio');
+  updateLastSync();
 };
 
 const openModal = () => {
@@ -301,7 +629,12 @@ const closeModal = () => {
 };
 
 const init = () => {
-  refreshAll();
+  loadState();
+  const statusMessage = predictor.historialNumeros.length
+    ? 'Estado restaurado desde almacenamiento local'
+    : 'Flujo en blanco: empieza registrando un número';
+  logMessage(statusMessage, 'info');
+  refreshUI();
   elements.numberForm.addEventListener('submit', handleNumberSubmit);
   elements.openConfigBtn.addEventListener('click', openModal);
   elements.openInlineConfig.addEventListener('click', openModal);
@@ -310,6 +643,10 @@ const init = () => {
   elements.resetBtn.addEventListener('click', resetSession);
   elements.configForm.addEventListener('submit', handleConfigSubmit);
   elements.usarMartingala.addEventListener('change', (event) => toggleMartingalaFields(event.target.checked));
+  if (elements.simulationForm) {
+    elements.simulationForm.addEventListener('submit', handleSimulationUpload);
+  }
+  renderSimulationSuggestions();
 };
 
 document.addEventListener('DOMContentLoaded', init);
