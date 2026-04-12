@@ -135,34 +135,6 @@
           </article>
         </section>
 
-        <section class="panel panel--simulation">
-          <header class="panel__header">
-            <div>
-              <p class="eyebrow">Simulaciones</p>
-              <h2>Cargar archivo .txt</h2>
-            </div>
-          </header>
-          <p class="panel__description">
-            Exporta tus tiradas en un arreglo como el ejemplo (`[30, 18, 5, …]`) y súbelo aquí. El
-            sistema procesará cada número en orden, completará el historial, actualizará las barras
-            y te mostrará cómo responde la martingala ante los patrones que tú defines.
-          </p>
-          <form id="simulationForm" class="simulation-form">
-            <label class="simulation-form__label" for="simulationFile">
-              Archivo .txt con formato de arreglo
-            </label>
-            <input type="file" id="simulationFile" accept=".txt" />
-            <button type="submit" class="btn primary">Procesar archivo</button>
-          </form>
-          <div class="simulation__notes">
-            <h3>Sugerencias rápidas</h3>
-            <ul id="suggestionsList">
-              <li>Carga secuencias largas para afinar el conteo C‑D‑E antes de activar martingala.</li>
-              <li>Observa qué pasa cada vez que aparece un cero: el patrón se reinicia.</li>
-              <li>Si ves series de color largas, toma nota si conviene cambiar a martingala escalonada.</li>
-            </ul>
-          </div>
-        </section>
 
         <section class="grid grid--two mt-1">
           <article class="panel panel--stats">
@@ -230,6 +202,7 @@
           </article>
         </section>
 
+
         <section class="panel panel--log">
           <header class="panel__header">
             <div>
@@ -243,6 +216,36 @@
         </section>
       </main>
     </div>
+
+
+        <section class="panel panel--simulation">
+          <header class="panel__header">
+            <div>
+              <p class="eyebrow">Simulaciones</p>
+              <h2>Cargar archivo .txt</h2>
+            </div>
+          </header>
+          <p class="panel__description">
+            Exporta tus tiradas en un arreglo como el ejemplo (`[30, 18, 5, …]`) y súbelo aquí. El
+            sistema procesará cada número en orden, completará el historial, actualizará las barras
+            y te mostrará cómo responde la martingala ante los patrones que tú defines.
+          </p>
+          <form id="simulationForm" class="simulation-form">
+            <label class="simulation-form__label" for="simulationFile">
+              Archivo .txt con formato de arreglo
+            </label>
+            <input type="file" id="simulationFile" accept=".txt" />
+            <button type="submit" class="btn primary">Procesar archivo</button>
+          </form>
+          <div class="simulation__notes">
+            <h3>Sugerencias rápidas</h3>
+            <ul id="suggestionsList">
+              <li>Carga secuencias largas para afinar el conteo C‑D‑E antes de activar martingala.</li>
+              <li>Observa qué pasa cada vez que aparece un cero: el patrón se reinicia.</li>
+              <li>Si ves series de color largas, toma nota si conviene cambiar a martingala escalonada.</li>
+            </ul>
+          </div>
+        </section>
 
     <div class="modal" id="configModal" aria-hidden="true">
       <div class="modal__backdrop"></div>
