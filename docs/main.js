@@ -902,6 +902,9 @@ const buildRoulettePad = () => {
   const pad = document.getElementById('roulettePad');
   if (!pad) return;
 
+  // 🔥 limpiar por si se vuelve a ejecutar
+  pad.innerHTML = '';
+
   const rows = [
     [3,6,9,12,15,18,21,24,27,30,33,36],
     [2,5,8,11,14,17,20,23,26,29,32,35],
@@ -911,25 +914,37 @@ const buildRoulettePad = () => {
   rows.forEach(row => {
     row.forEach(num => {
       const color = RULETA_COLORES[num];
+
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.textContent = num;
-      btn.className = `num-${color === 'rojo' ? 'red' : 'black'}`;
+
+      // clases correctas
+      if (color === 'rojo') {
+        btn.className = 'num-red';
+      } else {
+        btn.className = 'num-black';
+      }
+
       btn.dataset.num = num;
+
       btn.addEventListener('click', () => selectNumber(num, btn));
+
       pad.appendChild(btn);
     });
   });
 
+  // ✅ agregar el 0 UNA sola vez
   const zeroBtn = document.createElement('button');
   zeroBtn.type = 'button';
   zeroBtn.textContent = '0';
   zeroBtn.className = 'num-green';
   zeroBtn.dataset.num = 0;
+
   zeroBtn.addEventListener('click', () => selectNumber(0, zeroBtn));
+
   pad.appendChild(zeroBtn);
 };
-
 const selectNumber = (num, btn) => {
   document.querySelectorAll('#roulettePad button.selected')
     .forEach(b => b.classList.remove('selected'));
@@ -984,7 +999,10 @@ const init = () => {
     : 'Flujo en blanco: empieza registrando un número';
   logMessage(statusMessage, 'info');
   refreshUI();
-  document.getElementById('submitNumBtn').addEventListener('click', handlePadSubmit);
+  const submitBtn = document.getElementById('submitNumBtn');
+  if (submitBtn) {
+    submitBtn.addEventListener('click', handlePadSubmit);
+  }
   buildRoulettePad();
   elements.openConfigBtn.addEventListener('click', openModal);
   elements.openInlineConfig.addEventListener('click', openModal);
