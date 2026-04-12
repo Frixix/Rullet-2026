@@ -34,52 +34,52 @@
         </div>
       </header>
 
-    <main>
-      <section class="panel panel--chart">
-        <header class="panel__header">
-          <div>
-            <p class="eyebrow">Saldo martingala</p>
-            <h2>Diagrama estilo trading</h2>
+      <main>
+        <section class="panel panel--chart">
+          <header class="panel__header">
+            <div>
+              <p class="eyebrow">Saldo martingala</p>
+              <h2>Diagrama estilo trading</h2>
+            </div>
+          </header>
+          <p class="panel__description">
+            Cada lanzamiento que activa la martingala se refleja aquí como una vela; la parte
+            superior marca el pico, la inferior la caída, y el cuerpo indica si el saldo subió o
+            bajó respecto al paso anterior.
+          </p>
+          <div class="chart-wrapper">
+            <canvas id="balanceCanvas"></canvas>
           </div>
-        </header>
-        <p class="panel__description">
-          Cada lanzamiento que activa la martingala se refleja aquí como una vela; la parte
-          superior marca el pico, la inferior la caída, y el cuerpo indica si el saldo subió o
-          bajó respecto al paso anterior.
-        </p>
-        <div class="chart-wrapper">
-          <canvas id="balanceCanvas"></canvas>
-        </div>
-        <div class="chart-summary">
-          <div>
-            <span>Máximo saldo</span>
-            <strong id="balanceHigh">$0</strong>
+          <div class="chart-summary">
+            <div>
+              <span>Máximo saldo</span>
+              <strong id="balanceHigh">$0</strong>
+            </div>
+            <div>
+              <span>Mínimo saldo</span>
+              <strong id="balanceLow">$0</strong>
+            </div>
+            <div>
+              <span>Rango</span>
+              <strong id="balanceDiff">$0</strong>
+            </div>
+            <div>
+              <span>Saldo actual</span>
+              <strong id="balanceCurrent">$0</strong>
+            </div>
           </div>
-          <div>
-            <span>Mínimo saldo</span>
-            <strong id="balanceLow">$0</strong>
+          <div class="chart-controls">
+            <label for="zoomRange">Zoom: <span id="zoomValue">60</span> tiradas</label>
+            <input id="zoomRange" type="range" min="10" max="200" value="60" step="5" />
           </div>
-          <div>
-            <span>Rango</span>
-            <strong id="balanceDiff">$0</strong>
+          <div class="chart-hover-info">
+            <span id="hoverLaunch">Lanzamiento: —</span>
+            <span id="hoverSaldo">Saldo actual: —</span>
           </div>
-          <div>
-            <span>Saldo actual</span>
-            <strong id="balanceCurrent">$0</strong>
-          </div>
-        </div>
-        <div class="chart-controls">
-          <label for="zoomRange">Zoom: <span id="zoomValue">60</span> tiradas</label>
-          <input id="zoomRange" type="range" min="10" max="200" value="60" step="5" />
-        </div>
-        <div class="chart-hover-info">
-          <span id="hoverLaunch">Lanzamiento: —</span>
-          <span id="hoverSaldo">Saldo actual: —</span>
-        </div>
-      </section>
+        </section>
 
-      <section class="grid grid--two">
-        <article class="panel panel--config">
+        <section class="grid grid--two">
+          <article class="panel panel--config">
             <div class="panel__header">
               <div>
                 <p class="eyebrow">Configuración activa</p>
@@ -123,62 +123,48 @@
                 <h2>Agregar número</h2>
               </div>
             </div>
-            <form id="numberForm" class="number-form">
-              <label>
-                Número (0‑36)
-                <input
-                  type="number"
-                  id="numeroInput"
-                  name="numero"
-                  min="0"
-                  max="36"
-                  required
-                  placeholder="Ingresa un número"
-                  autocomplete="off"
-                />
-              </label>
-              <button type="submit" class="btn primary">Enviar número</button>
-            </form>
-            <div id="latestResult" class="result-card">
-              <p class="result-card__title">Último resultado</p>
-              <p id="latestMessage" class="result-card__message">
-                Ningún número registrado aún.
-              </p>
-              <div class="result-card__meta" id="latestMeta"></div>
+            <div id="numberForm" class="number-form">
+              <div class="roulette-pad" id="roulettePad"></div>
+              <div id="selectedDisplay" class="selected-display">
+                Ningún número seleccionado
+              </div>
+              <button type="button" class="btn primary" id="submitNumBtn">
+                Enviar número
+              </button>
             </div>
           </article>
-      </section>
+        </section>
 
-      <section class="panel panel--simulation">
-        <header class="panel__header">
-          <div>
-            <p class="eyebrow">Simulaciones</p>
-            <h2>Cargar archivo .txt</h2>
+        <section class="panel panel--simulation">
+          <header class="panel__header">
+            <div>
+              <p class="eyebrow">Simulaciones</p>
+              <h2>Cargar archivo .txt</h2>
+            </div>
+          </header>
+          <p class="panel__description">
+            Exporta tus tiradas en un arreglo como el ejemplo (`[30, 18, 5, …]`) y súbelo aquí. El
+            sistema procesará cada número en orden, completará el historial, actualizará las barras
+            y te mostrará cómo responde la martingala ante los patrones que tú defines.
+          </p>
+          <form id="simulationForm" class="simulation-form">
+            <label class="simulation-form__label" for="simulationFile">
+              Archivo .txt con formato de arreglo
+            </label>
+            <input type="file" id="simulationFile" accept=".txt" />
+            <button type="submit" class="btn primary">Procesar archivo</button>
+          </form>
+          <div class="simulation__notes">
+            <h3>Sugerencias rápidas</h3>
+            <ul id="suggestionsList">
+              <li>Carga secuencias largas para afinar el conteo C‑D‑E antes de activar martingala.</li>
+              <li>Observa qué pasa cada vez que aparece un cero: el patrón se reinicia.</li>
+              <li>Si ves series de color largas, toma nota si conviene cambiar a martingala escalonada.</li>
+            </ul>
           </div>
-        </header>
-        <p class="panel__description">
-          Exporta tus tiradas en un arreglo como el ejemplo (`[30, 18, 5, …]`) y súbelo aquí. El
-          sistema procesará cada número en orden, completará el historial, actualizará las barras
-          y te mostrará cómo responde la martingala ante los patrones que tú defines.
-        </p>
-        <form id="simulationForm" class="simulation-form">
-          <label class="simulation-form__label" for="simulationFile">
-            Archivo .txt con formato de arreglo
-          </label>
-          <input type="file" id="simulationFile" accept=".txt" />
-          <button type="submit" class="btn primary">Procesar archivo</button>
-        </form>
-        <div class="simulation__notes">
-          <h3>Sugerencias rápidas</h3>
-          <ul id="suggestionsList">
-            <li>Carga secuencias largas para afinar el conteo C‑D‑E antes de activar martingala.</li>
-            <li>Observa qué pasa cada vez que aparece un cero: el patrón se reinicia.</li>
-            <li>Si ves series de color largas, toma nota si conviene cambiar a martingala escalonada.</li>
-          </ul>
-        </div>
-      </section>
+        </section>
 
-      <section class="grid grid--two mt-1">
+        <section class="grid grid--two mt-1">
           <article class="panel panel--stats">
             <header class="panel__header">
               <div>

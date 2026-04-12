@@ -259,7 +259,7 @@ class RuletaPredictor {
     const resultado = this.analizarPatron(numero);
     const martingala = this.procesarMartingala(resultado);
     this.recordBalanceStep(previousBalance);
-    
+
     const registro = {
       numero,
       color,
@@ -314,7 +314,6 @@ class RuletaPredictor {
 const predictor = new RuletaPredictor();
 
 const elements = {
-  numeroInput: document.getElementById('numeroInput'),
   numberForm: document.getElementById('numberForm'),
   latestMessage: document.getElementById('latestMessage'),
   latestMeta: document.getElementById('latestMeta'),
@@ -366,6 +365,7 @@ elements.simulationFile = document.getElementById('simulationFile');
 elements.suggestionsList = document.getElementById('suggestionsList');
 
 let lastPayload = null;
+let selectedNumber = null;
 
 const logMessage = (text, tone = 'info') => {
   const card = document.createElement('div');
@@ -569,7 +569,7 @@ const renderBalanceChart = () => {
   const timeTicks = Math.min(visibleLength, 6);
   for (let i = 0; i <= timeTicks; i++) {
     const idx = timeTicks === 0 ? 0 : Math.round((visibleLength - 1) * (i / timeTicks));
-    const x = padding + idx * (visibleLength === 1 ? stepX : stepX);
+    const x = padding + idx * stepX;
     ctx.beginPath();
     ctx.moveTo(x, height - padding);
     ctx.lineTo(x, height - padding + 6);
@@ -807,8 +807,10 @@ const renderHistory = (historial) => {
   });
 };
 
+// ── CORREGIDA: verifica existencia antes de escribir ──────────────
 const renderLatestResult = (payload) => {
   if (!payload) return;
+  if (!elements.latestMessage) return;
   const { numero, color, resultado, martingala } = payload;
   const message = resultado?.mensaje || 'Respuesta procesada.';
   elements.latestMessage.textContent = message;
@@ -826,9 +828,10 @@ const renderLatestResult = (payload) => {
     meta.push(`Saldo Martingala: ${predictor.saldoMartingala}`);
   }
 
-  elements.latestMeta.textContent = meta.join(' • ');
+  if (elements.latestMeta) elements.latestMeta.textContent = meta.join(' • ');
 };
 
+// ── CORREGIDA: verifica existencia antes de escribir ──────────────
 const refreshUI = () => {
   const stats = predictor.getEstadisticas();
   renderStats(stats);
@@ -839,42 +842,34 @@ const refreshUI = () => {
   if (payload) {
     renderLatestResult(payload);
   } else {
-    elements.latestMessage.textContent = DEFAULT_LATEST_MESSAGE;
-    elements.latestMeta.textContent = '';
+    if (elements.latestMessage) elements.latestMessage.textContent = DEFAULT_LATEST_MESSAGE;
+    if (elements.latestMeta) elements.latestMeta.textContent = '';
   }
   updateLastSync();
 };
 
-const handleNumberSubmit = (event) => {
-  event.preventDefault();
-  const value = parseInt(elements.numeroInput.value, 10);
-  if (Number.isNaN(value) || value < 0 || value > 36) {
-    alert('Ingresa un número válido entre 0 y 36');
-    return;
+// ── CORREGIDA: verifica existencia antes de escribir ──────────────
+const resetSession = () => {
+  setHeroLevel('Reiniciando sesión...');
+  predictor.resetState();
+  saveState();
+  renderStats(predictor.getEstadisticas());
+  renderHistory(predictor.historialNumeros);
+  if (elements.latestMessage) {
+    elements.latestMessage.textContent = 'Sesión reiniciada. Ingresa un número para reactivar el flujo.';
   }
+  if (elements.latestMeta) elements.latestMeta.textContent = '';
+  logMessage('Sesión reiniciada en el cliente', 'success');
+  setHeroLevel('Listo con estado limpio');
+  updateLastSync();
+};
 
-  setHeroLevel('Procesando número...');
-  elements.numeroInput.disabled = true;
-  try {
-    const payload = predictor.agregarNumero(value);
-    lastPayload = payload;
-    saveState();
-    renderLatestResult(payload);
-    renderStats(payload.estadisticas);
-    renderHistory(predictor.historialNumeros);
-    logMessage(
-      `Número ${value} registrado → ${payload.resultado?.mensaje}`,
-      payload.resultado?.acierto ? 'success' : 'warn'
-    );
-    setHeroLevel('Número procesado');
-  } catch (error) {
-    logMessage('Error al registrar número: ' + error.message, 'error');
-    setHeroLevel('Error procesando número');
-  } finally {
-    elements.numeroInput.disabled = false;
-    elements.numeroInput.value = '';
-    updateLastSync();
-  }
+const openModal = () => {
+  elements.configModal.setAttribute('aria-hidden', 'false');
+};
+
+const closeModal = () => {
+  elements.configModal.setAttribute('aria-hidden', 'true');
 };
 
 const handleConfigSubmit = (event) => {
@@ -903,25 +898,83 @@ const handleConfigSubmit = (event) => {
   }
 };
 
-const resetSession = () => {
-  setHeroLevel('Reiniciando sesión...');
-  predictor.resetState();
-  saveState();
-  renderStats(predictor.getEstadisticas());
-  renderHistory(predictor.historialNumeros);
-  elements.latestMessage.textContent = 'Sesión reiniciada. Ingresa un número para reactivar el flujo.';
-  elements.latestMeta.textContent = '';
-  logMessage('Sesión reiniciada en el cliente', 'success');
-  setHeroLevel('Listo con estado limpio');
-  updateLastSync();
+const buildRoulettePad = () => {
+  const pad = document.getElementById('roulettePad');
+  if (!pad) return;
+
+  const rows = [
+    [3,6,9,12,15,18,21,24,27,30,33,36],
+    [2,5,8,11,14,17,20,23,26,29,32,35],
+    [1,4,7,10,13,16,19,22,25,28,31,34]
+  ];
+
+  rows.forEach(row => {
+    row.forEach(num => {
+      const color = RULETA_COLORES[num];
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = num;
+      btn.className = `num-${color === 'rojo' ? 'red' : 'black'}`;
+      btn.dataset.num = num;
+      btn.addEventListener('click', () => selectNumber(num, btn));
+      pad.appendChild(btn);
+    });
+  });
+
+  const zeroBtn = document.createElement('button');
+  zeroBtn.type = 'button';
+  zeroBtn.textContent = '0';
+  zeroBtn.className = 'num-green';
+  zeroBtn.dataset.num = 0;
+  zeroBtn.addEventListener('click', () => selectNumber(0, zeroBtn));
+  pad.appendChild(zeroBtn);
 };
 
-const openModal = () => {
-  elements.configModal.setAttribute('aria-hidden', 'false');
+const selectNumber = (num, btn) => {
+  document.querySelectorAll('#roulettePad button.selected')
+    .forEach(b => b.classList.remove('selected'));
+
+  selectedNumber = num;
+  btn.classList.add('selected');
+
+  const color = RULETA_COLORES[num];
+  const label = color === 'rojo' ? 'Rojo' : color === 'negro' ? 'Negro' : 'Verde';
+  const display = document.getElementById('selectedDisplay');
+  if (display) display.textContent = `Seleccionado: ${num} — ${label}`;
 };
 
-const closeModal = () => {
-  elements.configModal.setAttribute('aria-hidden', 'true');
+const handlePadSubmit = () => {
+  if (selectedNumber === null) {
+    alert('Selecciona un número en el teclado primero.');
+    return;
+  }
+
+  setHeroLevel('Procesando número...');
+  try {
+    const payload = predictor.agregarNumero(selectedNumber);
+    lastPayload = payload;
+    saveState();
+    renderLatestResult(payload);
+    renderStats(payload.estadisticas);
+    renderHistory(predictor.historialNumeros);
+    renderBalanceChart();
+    updateBalanceSummary();
+    logMessage(
+      `Número ${selectedNumber} registrado → ${payload.resultado?.mensaje}`,
+      payload.resultado?.acierto ? 'success' : 'warn'
+    );
+    setHeroLevel('Número procesado');
+  } catch (error) {
+    logMessage('Error al registrar número: ' + error.message, 'error');
+    setHeroLevel('Error procesando número');
+  } finally {
+    selectedNumber = null;
+    document.querySelectorAll('#roulettePad button.selected')
+      .forEach(b => b.classList.remove('selected'));
+    const display = document.getElementById('selectedDisplay');
+    if (display) display.textContent = 'Ningún número seleccionado';
+    updateLastSync();
+  }
 };
 
 const init = () => {
@@ -931,7 +984,8 @@ const init = () => {
     : 'Flujo en blanco: empieza registrando un número';
   logMessage(statusMessage, 'info');
   refreshUI();
-  elements.numberForm.addEventListener('submit', handleNumberSubmit);
+  document.getElementById('submitNumBtn').addEventListener('click', handlePadSubmit);
+  buildRoulettePad();
   elements.openConfigBtn.addEventListener('click', openModal);
   elements.openInlineConfig.addEventListener('click', openModal);
   elements.closeConfigModal.addEventListener('click', closeModal);
