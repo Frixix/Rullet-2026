@@ -501,17 +501,9 @@ textarea:focus-visible {
 }
 
 /* COLORES MÁS FINOS (MENOS CHILLONES) */
-.num-red {
-  background: linear-gradient(145deg, #b71c1c, #7f1010);
-}
-
-.num-black {
-  background: linear-gradient(145deg, #111, #000);
-}
-
-.num-green {
-  background: linear-gradient(145deg, #1b5e20, #0f3a14);
-}
+.roulette-pad button.num-red   { background: linear-gradient(145deg, #b71c1c, #7f1010); }
+.roulette-pad button.num-black { background: linear-gradient(145deg, #111, #000); }
+.roulette-pad button.num-green { background: linear-gradient(145deg, #1b5e20, #0f3a14); }
 
 /* HOVER SUAVE */
 .roulette-pad button:hover {
