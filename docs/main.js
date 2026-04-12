@@ -13,7 +13,7 @@ const RULETA_COLORES = {
 
 const PATRON_COLORES = {
   0: ['verde', 'verde', 'verde'],
-  1: ['rojo', 'rojo', 'negro'], 2: ['rojo', 'rojo', 'rojo'], 3: ['rojo', 'negro', 'rojo'],
+  1: ['rojo', 'rojo', 'negro'], 2: ['negro', 'negro', 'negro'], 3: ['rojo', 'negro', 'rojo'],
   4: ['negro', 'negro', 'negro'], 5: ['rojo', 'negro', 'rojo'], 6: ['negro', 'negro', 'negro'],
   7: ['rojo', 'negro', 'rojo'], 8: ['negro', 'negro', 'rojo'], 9: ['rojo', 'negro', 'rojo'],
   10: ['negro', 'negro', 'rojo'], 11: ['negro', 'negro', 'rojo'], 12: ['rojo', 'rojo', 'negro'],
@@ -27,6 +27,9 @@ const PATRON_COLORES = {
   34: ['rojo', 'rojo', 'rojo'], 35: ['negro', 'negro', 'negro'], 36: ['rojo', 'rojo', 'rojo']
 };
 
+// ─────────────────────────────────────────────
+// CLASE PRINCIPAL
+// ─────────────────────────────────────────────
 class RuletaPredictor {
   constructor() {
     this.resetState();
@@ -170,13 +173,7 @@ class RuletaPredictor {
     this.patronActivo = false;
     this.patronActual = [];
     this.etapaActual = 0;
-    return {
-      mensaje,
-      acierto: false,
-      etapa: falloLetra,
-      esperado,
-      salio: colorReal
-    };
+    return { mensaje, acierto: false, etapa: falloLetra, esperado, salio: colorReal };
   }
 
   procesarMartingala(resultado) {
@@ -185,7 +182,6 @@ class RuletaPredictor {
     const modo = this.config.modoMartingala;
     const esAciertoE = resultado?.acierto === true && resultado?.etapa === 'E';
     const esFalloE = resultado?.acierto === false && resultado?.etapa === 'E';
-
     let cambio = null;
 
     if (modo === 1) {
@@ -201,11 +197,7 @@ class RuletaPredictor {
         this.saldoMartingala += this.apuestaActual;
         this.nivelMartingala = 0;
         this.apuestaActual = this.config.nivelesMartingala[this.nivelMartingala];
-        cambio = {
-          tipo: 'acierto',
-          saldo: this.saldoMartingala,
-          proximaApuesta: this.apuestaActual
-        };
+        cambio = { tipo: 'acierto', saldo: this.saldoMartingala, proximaApuesta: this.apuestaActual };
       } else if (esFalloE) {
         this.saldoMartingala -= this.apuestaActual;
         this.nivelMartingala++;
@@ -213,39 +205,28 @@ class RuletaPredictor {
           this.nivelMartingala = this.config.nivelesMartingala.length - 1;
         }
         this.apuestaActual = this.config.nivelesMartingala[this.nivelMartingala];
-        cambio = {
-          tipo: 'fallo',
-          saldo: this.saldoMartingala,
-          proximaApuesta: this.apuestaActual,
-          nivel: this.nivelMartingala
-        };
+        cambio = { tipo: 'fallo', saldo: this.saldoMartingala, proximaApuesta: this.apuestaActual, nivel: this.nivelMartingala };
       }
     }
 
     return cambio;
   }
 
-  recordBalanceStep(previousBalance) {
+  recordBalanceStep(previousBalance, martingalaCambio) {
     const open = previousBalance;
     const close = this.saldoMartingala;
     const high = Math.max(open, close);
-    const low = Math.min(open, close);
-    this.balanceTimeline.push({ open, high, low, close });
-    if (this.balanceTimeline.length > 200) {
-      this.balanceTimeline.shift();
-    }
+    const low  = Math.min(open, close);
+    const tipo = martingalaCambio?.tipo || null; // 'acierto', 'fallo', o null
+    this.balanceTimeline.push({ open, high, low, close, tipo });
+    if (this.balanceTimeline.length > 500) this.balanceTimeline.shift();
   }
 
-  getBalanceTimeline() {
-    return this.balanceTimeline;
-  }
+  getBalanceTimeline() { return this.balanceTimeline; }
 
   getBalanceExtremes() {
-    if (!this.balanceTimeline.length) {
-      return { high: 0, low: 0 };
-    }
-    let high = -Infinity;
-    let low = Infinity;
+    if (!this.balanceTimeline.length) return { high: 0, low: 0 };
+    let high = -Infinity, low = Infinity;
     this.balanceTimeline.forEach((entry) => {
       if (entry.high > high) high = entry.high;
       if (entry.low < low) low = entry.low;
@@ -258,22 +239,15 @@ class RuletaPredictor {
     const previousBalance = this.saldoMartingala;
     const resultado = this.analizarPatron(numero);
     const martingala = this.procesarMartingala(resultado);
-    this.recordBalanceStep(previousBalance);
 
-    const registro = {
-      numero,
-      color,
-      timestamp: new Date().toISOString(),
-      resultado
-    };
+    // ← Siempre graba, no solo cuando martingala actúa
+    this.recordBalanceStep(previousBalance, martingala);
 
+    const registro = { numero, color, timestamp: new Date().toISOString(), resultado };
     this.historialNumeros.push(registro);
+    if (this.historialNumeros.length > 1000) this.historialNumeros.shift();
     this.ultimoResultado = { numero, color, resultado, martingala };
-
-    return {
-      ...this.ultimoResultado,
-      estadisticas: this.getEstadisticas()
-    };
+    return { ...this.ultimoResultado, estadisticas: this.getEstadisticas() };
   }
 
   getEstadisticas() {
@@ -291,13 +265,7 @@ class RuletaPredictor {
       .sort((a, b) => b.veces - a.veces)
       .slice(0, 15);
 
-    return {
-      total,
-      colores,
-      topNumeros,
-      saldoMartingala: this.saldoMartingala,
-      config: this.config
-    };
+    return { total, colores, topNumeros, saldoMartingala: this.saldoMartingala, config: this.config };
   }
 
   actualizarConfig(nuevaConfig) {
@@ -311,12 +279,12 @@ class RuletaPredictor {
   }
 }
 
+// ─────────────────────────────────────────────
+// INSTANCIA Y ELEMENTOS DOM
+// ─────────────────────────────────────────────
 const predictor = new RuletaPredictor();
 
 const elements = {
-  numberForm: document.getElementById('numberForm'),
-  latestMessage: document.getElementById('latestMessage'),
-  latestMeta: document.getElementById('latestMeta'),
   lastSync: document.getElementById('lastSync'),
   heroLevel: document.getElementById('heroLevel'),
   logList: document.getElementById('logList'),
@@ -331,15 +299,19 @@ const elements = {
   totalTiradas: document.getElementById('totalTiradas'),
   saldoMartingala: document.getElementById('saldoMartingala'),
   valorApuesta: document.getElementById('valorApuesta'),
-  configTipoRuleta: document.getElementById('configTipoRuleta'),
-  configTipoJuego: document.getElementById('configTipoJuego'),
-  configMartingala: document.getElementById('configMartingala'),
-  configModo: document.getElementById('configModo'),
-  configApuesta: document.getElementById('configApuesta'),
-  configSummary: document.getElementById('configSummary'),
+
+  // Config pills en el hero (reemplaza al panel de config)
+  heroConfigTipoRuleta: document.getElementById('heroConfigTipoRuleta'),
+  heroConfigTipoJuego: document.getElementById('heroConfigTipoJuego'),
+  heroConfigMartingala: document.getElementById('heroConfigMartingala'),
+  heroConfigModo: document.getElementById('heroConfigModo'),
+  heroConfigApuesta: document.getElementById('heroConfigApuesta'),
+
+  // Controles
   openConfigBtn: document.getElementById('openConfigBtn'),
-  openInlineConfig: document.getElementById('openInlineConfig'),
   resetBtn: document.getElementById('resetBtn'),
+
+  // Modal
   configModal: document.getElementById('configModal'),
   closeConfigModal: document.getElementById('closeConfigModal'),
   cancelConfig: document.getElementById('cancelConfig'),
@@ -350,6 +322,8 @@ const elements = {
   valorApuestaBase: document.getElementById('valorApuestaBase'),
   tipoRuleta: document.getElementById('tipoRuleta'),
   tipoJuego: document.getElementById('tipoJuego'),
+
+  // Canvas y controles de gráfico
   balanceCanvas: document.getElementById('balanceCanvas'),
   balanceHigh: document.getElementById('balanceHigh'),
   balanceLow: document.getElementById('balanceLow'),
@@ -358,15 +332,22 @@ const elements = {
   zoomRange: document.getElementById('zoomRange'),
   zoomValue: document.getElementById('zoomValue'),
   hoverLaunch: document.getElementById('hoverLaunch'),
-  hoverSaldo: document.getElementById('hoverSaldo')
-};
-elements.simulationForm = document.getElementById('simulationForm');
-elements.simulationFile = document.getElementById('simulationFile');
-elements.suggestionsList = document.getElementById('suggestionsList');
+  hoverSaldo: document.getElementById('hoverSaldo'),
 
-let lastPayload = null;
+  // Simulación
+  simulationForm: document.getElementById('simulationForm'),
+  simulationFile: document.getElementById('simulationFile'),
+  fileUploadArea: document.getElementById('fileUploadArea'),
+  fileUploadName: document.getElementById('fileUploadName'),
+  suggestionsList: document.getElementById('suggestionsList'),
+  downloadTemplateBtn: document.getElementById('downloadTemplateBtn')
+};
+
 let selectedNumber = null;
 
+// ─────────────────────────────────────────────
+// LOG
+// ─────────────────────────────────────────────
 const logMessage = (text, tone = 'info') => {
   const card = document.createElement('div');
   card.className = 'log-card';
@@ -374,20 +355,88 @@ const logMessage = (text, tone = 'info') => {
   const timestamp = new Date().toLocaleTimeString('es-CO');
   card.innerHTML = `<strong>${timestamp}</strong> — ${text}`;
   const firstChild = elements.logList.firstElementChild;
-  if (firstChild && firstChild.classList.contains('placeholder')) {
-    firstChild.remove();
-  }
+  if (firstChild && firstChild.classList.contains('placeholder')) firstChild.remove();
   elements.logList.prepend(card);
-  if (elements.logList.childElementCount > 6) {
-    elements.logList.lastElementChild.remove();
+  if (elements.logList.childElementCount > 8) elements.logList.lastElementChild.remove();
+};
+
+// ─────────────────────────────────────────────
+// PLANTILLA DESCARGABLE
+// ─────────────────────────────────────────────
+const downloadTemplate = () => {
+  const ejemplo = [0, 5, 12, 3, 27, 36, 14, 8, 0, 19, 22, 7, 31, 0, 4];
+  const contenido = `// Predictor de Ruleta 2026 — Plantilla de tiradas
+// Formato: arreglo de números entre 0 y 36
+// Puedes poner varios números separados por comas
+// Ejemplo real abajo, reemplaza con tus propios datos:
+
+[${ejemplo.join(', ')}]
+`;
+  const blob = new Blob([contenido], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'plantilla-tiradas-ruleta.txt';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  logMessage('Plantilla .txt descargada correctamente.', 'success');
+};
+
+// ─────────────────────────────────────────────
+// FILE INPUT CUSTOM
+// ─────────────────────────────────────────────
+const handleFileChange = () => {
+  const file = elements.simulationFile?.files?.[0];
+  const nameEl = elements.fileUploadName;
+  if (!nameEl) return;
+  if (file) {
+    nameEl.textContent = `📄 ${file.name}`;
+    nameEl.classList.add('has-file');
+  } else {
+    nameEl.textContent = 'Ningún archivo seleccionado';
+    nameEl.classList.remove('has-file');
   }
 };
 
+const setupDragAndDrop = () => {
+  const area = elements.fileUploadArea;
+  if (!area) return;
+
+  area.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    area.classList.add('drag-over');
+  });
+
+  area.addEventListener('dragleave', () => {
+    area.classList.remove('drag-over');
+  });
+
+  area.addEventListener('drop', (e) => {
+    e.preventDefault();
+    area.classList.remove('drag-over');
+    const file = e.dataTransfer?.files?.[0];
+    if (file && file.name.endsWith('.txt')) {
+      // Asignar al input de archivo vía DataTransfer
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      elements.simulationFile.files = dt.files;
+      handleFileChange();
+    } else {
+      logMessage('Solo se aceptan archivos .txt', 'error');
+    }
+  });
+};
+
+// ─────────────────────────────────────────────
+// SIMULACIÓN
+// ─────────────────────────────────────────────
 const parseNumbersFromText = (text) => {
   const matches = text.match(/-?\d+/g) || [];
   return matches
-    .map((value) => Number(value))
-    .filter((value) => Number.isFinite(value) && value >= 0 && value <= 36);
+    .map((v) => Number(v))
+    .filter((v) => Number.isFinite(v) && v >= 0 && v <= 36);
 };
 
 const simulationSuggestions = [
@@ -406,6 +455,48 @@ const renderSimulationSuggestions = () => {
   });
 };
 
+const handleSimulationUpload = (event) => {
+  event.preventDefault();
+  const file = elements.simulationFile?.files?.[0];
+  if (!file) {
+    alert('Selecciona un archivo .txt con los datos antes de procesar.');
+    return;
+  }
+
+  const reader = new FileReader();
+  setHeroLevel('Procesando simulación...');
+
+  reader.onload = (loadEvent) => {
+    const rawText = loadEvent.target?.result || '';
+    const parsedNumbers = parseNumbersFromText(rawText);
+    if (!parsedNumbers.length) {
+      logMessage('El archivo no contenía números válidos (0‑36).', 'error');
+      setHeroLevel('Nada procesado');
+      return;
+    }
+
+    parsedNumbers.forEach((numero) => predictor.agregarNumero(numero));
+    saveState();
+    refreshUI();
+    logMessage(`Simulación cargada: ${parsedNumbers.length} números procesados.`, 'success');
+    setHeroLevel('Simulación aplicada');
+
+    // Limpiar input
+    elements.simulationFile.value = '';
+    handleFileChange();
+  };
+
+  reader.onerror = () => {
+    logMessage('No se pudo leer el archivo seleccionado.', 'error');
+    setHeroLevel('Error leyendo archivo');
+  };
+
+  reader.readAsText(file);
+};
+
+// ─────────────────────────────────────────────
+// CHART
+// ─────────────────────────────────────────────
 const chartState = {
   windowSize: Number(elements.zoomRange?.value) || 60,
   hoverIndex: null,
@@ -414,9 +505,7 @@ const chartState = {
 };
 
 const updateZoomLabel = (value) => {
-  if (elements.zoomValue) {
-    elements.zoomValue.textContent = value.toString();
-  }
+  if (elements.zoomValue) elements.zoomValue.textContent = value.toString();
 };
 
 const updateHoverInfo = (entry, absoluteIndex = null) => {
@@ -438,22 +527,21 @@ const handleZoomChange = () => {
 
 const handleChartHover = (event) => {
   const render = chartState.lastRender;
-  const state = chartState.lastState;
+  const state  = chartState.lastState;
   const canvas = elements.balanceCanvas;
   if (!canvas || !render || !state) return;
+
   const rect = canvas.getBoundingClientRect();
-  const x = Math.max(0, Math.min(render.width, event.clientX - rect.left));
-  const { padding, chartWidth, timelineLength } = render;
-  if (!timelineLength) {
-    chartState.hoverIndex = null;
-    updateHoverInfo(null);
-    return;
-  }
-  const relativeX = Math.max(0, Math.min(chartWidth, x - padding));
-  const index =
-    timelineLength > 1
-      ? Math.round((relativeX / chartWidth) * (timelineLength - 1))
-      : 0;
+  const x = event.clientX - rect.left;
+  const { padLeft, chartWidth, timelineLength } = render;
+
+  if (!timelineLength) { chartState.hoverIndex = null; updateHoverInfo(null); return; }
+
+  const relX  = Math.max(0, Math.min(chartWidth, x - padLeft));
+  const index = timelineLength > 1
+    ? Math.round((relX / chartWidth) * (timelineLength - 1))
+    : 0;
+
   chartState.hoverIndex = Math.max(0, Math.min(timelineLength - 1, index));
   const entry = state.timeline[chartState.hoverIndex];
   updateHoverInfo(entry, state.startIndex + chartState.hoverIndex + 1);
@@ -475,228 +563,323 @@ const updateBalanceSummary = () => {
   if (elements.balanceCurrent) {
     const current = predictor.saldoMartingala;
     elements.balanceCurrent.textContent = `$${current.toLocaleString('es-CO')}`;
-    elements.balanceCurrent.style.color =
-      current >= 0 ? 'rgb(34, 197, 94)' : 'rgb(239, 68, 68)';
+    elements.balanceCurrent.style.color = current >= 0 ? 'rgb(34,197,94)' : 'rgb(239,68,68)';
   }
 };
 
 const renderBalanceChart = () => {
   const canvas = elements.balanceCanvas;
   if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const rect = canvas.getBoundingClientRect();
-  const dpr = window.devicePixelRatio || 1;
-  const width = rect.width;
+  const ctx    = canvas.getContext('2d');
+  const rect   = canvas.getBoundingClientRect();
+  const dpr    = window.devicePixelRatio || 1;
+  const width  = rect.width;
   const height = rect.height;
-  canvas.width = width * dpr;
-  canvas.height = height * dpr;
+
+  const targetW = Math.round(width  * dpr);
+  const targetH = Math.round(height * dpr);
+  if (canvas.width !== targetW || canvas.height !== targetH) {
+    canvas.width  = targetW;
+    canvas.height = targetH;
+  }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, width, height);
 
-  const timeline = predictor.getBalanceTimeline();
-  const effectiveWindow = Math.max(
-    Math.min(chartState.windowSize, Math.max(5, timeline.length)),
-    5
-  );
-  const startIndex = Math.max(0, timeline.length - effectiveWindow);
+  // ── Márgenes ──────────────────────────────────────────────────
+  const PAD_LEFT   = 58;
+  const PAD_RIGHT  = 16;
+  const PAD_TOP    = 38;
+  const PAD_BOTTOM = 36;
+  const chartWidth  = width  - PAD_LEFT - PAD_RIGHT;
+  const chartHeight = height - PAD_TOP  - PAD_BOTTOM;
+
+  const timeline       = predictor.getBalanceTimeline();
+  const effectiveWin   = Math.max(Math.min(chartState.windowSize, Math.max(5, timeline.length)), 5);
+  const startIndex     = Math.max(0, timeline.length - effectiveWin);
   const visibleTimeline = timeline.slice(startIndex);
-  const visibleLength = visibleTimeline.length;
-  if (!visibleLength) {
-    chartState.hoverIndex = null;
-  } else {
-    chartState.hoverIndex = Math.min(
-      Math.max(chartState.hoverIndex ?? 0, 0),
-      visibleLength - 1
-    );
-  }
-  chartState.lastState = { timeline: visibleTimeline, startIndex };
+  const visibleLength  = visibleTimeline.length;
+
+  chartState.lastState  = { timeline: visibleTimeline, startIndex };
   chartState.lastRender = {
-    width,
-    height,
-    padding: 16,
-    chartWidth: width - 32,
-    chartHeight: height - 32,
+    width, height, chartWidth, chartHeight,
+    padLeft: PAD_LEFT, padTop: PAD_TOP, padBottom: PAD_BOTTOM,
+    padding: PAD_LEFT,        // compatibilidad con handleChartHover
     timelineLength: visibleLength
   };
+  if (visibleLength > 0) {
+    chartState.hoverIndex = chartState.hoverIndex === null
+      ? null
+      : Math.min(Math.max(chartState.hoverIndex, 0), visibleLength - 1);
+  } else {
+    chartState.hoverIndex = null;
+  }
   updateZoomLabel(visibleLength);
 
+  // ── Fondo ─────────────────────────────────────────────────────
+  ctx.fillStyle = 'rgba(3,3,3,0.9)';
+  ctx.fillRect(0, 0, width, height);
+
   if (!visibleLength) {
-    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
     ctx.font = '13px "Space Grotesk", sans-serif';
-    ctx.fillText('Carga tiradas para ver el saldo en acción', 16, height / 2);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Registra tiradas para ver el saldo en acción', width / 2, height / 2);
     return;
   }
 
-  const highs = visibleTimeline.map((entry) => entry.high);
-  const lows = visibleTimeline.map((entry) => entry.low);
-  const maxValue = Math.max(...highs, 0);
-  const minValue = Math.min(...lows, 0);
-  const valueRange = Math.max(1, maxValue - minValue);
-  const { padding, chartWidth, chartHeight } = chartState.lastRender;
-  const stepX = visibleLength > 1 ? chartWidth / (visibleLength - 1) : chartWidth;
-  const candleWidth = Math.min(18, Math.max(6, stepX * 0.6));
+  // ── Escala ────────────────────────────────────────────────────
+  const closes = visibleTimeline.map(e => e.close);
+  const maxVal = Math.max(...closes, 0);
+  const minVal = Math.min(...closes, 0);
+  // Añadir 8% de margen arriba y abajo para que los puntos no queden pegados al borde
+  const padding8 = (maxVal - minVal) * 0.08 || 0.5;
+  const domainMax = maxVal + padding8;
+  const domainMin = minVal - padding8;
+  const valueRange = Math.max(0.01, domainMax - domainMin);
 
-  ctx.fillStyle = 'rgba(3, 3, 3, 0.65)';
-  ctx.fillRect(0, 0, width, height);
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-  ctx.lineWidth = 1;
-  const priceTicks = 5;
-  for (let i = 0; i <= priceTicks; i++) {
-    const y = padding + (chartHeight / priceTicks) * i;
-    ctx.beginPath();
-    ctx.moveTo(padding, y);
-    ctx.lineTo(width - padding, y);
-    ctx.stroke();
-    const value = maxValue - (valueRange / priceTicks) * i;
-    ctx.fillStyle = '#cfd2e9';
-    ctx.font = '11px "Space Grotesk", sans-serif';
+  const toY = (val) => PAD_TOP + chartHeight - ((val - domainMin) / valueRange) * chartHeight;
+  const toX = (i)   => PAD_LEFT + (visibleLength > 1 ? (i / (visibleLength - 1)) * chartWidth : chartWidth / 2);
+
+  const yZero = toY(0);
+  const currentBalance = predictor.saldoMartingala;
+
+  // ── Grid horizontal ───────────────────────────────────────────
+  const numGridLines = 5;
+  for (let i = 0; i <= numGridLines; i++) {
+    const val = domainMin + (valueRange / numGridLines) * i;
+    const y   = toY(val);
+    const isZeroLine = Math.abs(val) < valueRange / numGridLines / 2;
+
+    ctx.strokeStyle = isZeroLine ? 'rgba(255,255,255,0)' : 'rgba(255,255,255,0.05)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(PAD_LEFT, y); ctx.lineTo(width - PAD_RIGHT, y); ctx.stroke();
+
+    // Etiquetas del eje Y
+    const roundedVal = Math.round(val);
+    const isPos = roundedVal >= 0;
+    ctx.fillStyle = isZeroLine ? 'rgba(255,255,255,0.7)' : 'rgba(203,213,255,0.55)';
+    ctx.font = `${isZeroLine ? 'bold ' : ''}10px "Space Grotesk", sans-serif`;
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
-    ctx.fillText(`$${Math.round(value)}`, padding - 10, y);
+    ctx.fillText(
+      roundedVal === 0 ? '$0' : `${isPos ? '+' : '-'}$${Math.abs(roundedVal)}`,
+      PAD_LEFT - 5, y
+    );
   }
 
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+  // ── Línea de cero ─────────────────────────────────────────────
+  const zeroColor = currentBalance >= 0 ? 'rgba(34,197,94,0.8)' : 'rgba(239,68,68,0.8)';
+  ctx.save();
+  ctx.strokeStyle = zeroColor;
+  ctx.lineWidth   = 1.5;
+  ctx.setLineDash([6, 5]);
+  ctx.beginPath(); ctx.moveTo(PAD_LEFT, yZero); ctx.lineTo(width - PAD_RIGHT, yZero); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+
+  // ── Área de relleno (verde arriba, rojo abajo) ────────────────
+  // Construimos la forma: línea de closes + volver al cero
+  const areaPath = new Path2D();
+  areaPath.moveTo(toX(0), yZero);
+  visibleTimeline.forEach((e, i) => areaPath.lineTo(toX(i), toY(e.close)));
+  areaPath.lineTo(toX(visibleLength - 1), yZero);
+  areaPath.closePath();
+
+  // Zona positiva (clip arriba del cero)
+  ctx.save();
   ctx.beginPath();
-  ctx.moveTo(padding, padding);
-  ctx.lineTo(padding, height - padding);
-  ctx.lineTo(width - padding, height - padding);
+  ctx.rect(PAD_LEFT, PAD_TOP, chartWidth, Math.max(0, yZero - PAD_TOP));
+  ctx.clip();
+  const gradPos = ctx.createLinearGradient(0, PAD_TOP, 0, yZero);
+  gradPos.addColorStop(0, 'rgba(34,197,94,0.35)');
+  gradPos.addColorStop(1, 'rgba(34,197,94,0.04)');
+  ctx.fillStyle = gradPos;
+  ctx.fill(areaPath);
+  ctx.restore();
+
+  // Zona negativa (clip abajo del cero)
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(PAD_LEFT, yZero, chartWidth, Math.max(0, (PAD_TOP + chartHeight) - yZero));
+  ctx.clip();
+  const gradNeg = ctx.createLinearGradient(0, yZero, 0, PAD_TOP + chartHeight);
+  gradNeg.addColorStop(0, 'rgba(239,68,68,0.04)');
+  gradNeg.addColorStop(1, 'rgba(239,68,68,0.35)');
+  ctx.fillStyle = gradNeg;
+  ctx.fill(areaPath);
+  ctx.restore();
+
+  // ── Línea de equity ───────────────────────────────────────────
+  ctx.beginPath();
+  visibleTimeline.forEach((e, i) => {
+    const x = toX(i), y = toY(e.close);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  const lineGrad = ctx.createLinearGradient(0, PAD_TOP, 0, PAD_TOP + chartHeight);
+  lineGrad.addColorStop(0,   '#22c55e');
+  lineGrad.addColorStop(0.5, '#facc15');
+  lineGrad.addColorStop(1,   '#ef4444');
+  ctx.strokeStyle = lineGrad;
+  ctx.lineWidth   = 2.5;
+  ctx.lineJoin    = 'round';
   ctx.stroke();
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'top';
-  ctx.fillText('Lanzamientos', width / 2, height - 14);
 
-  const timeTicks = Math.min(visibleLength, 6);
-  for (let i = 0; i <= timeTicks; i++) {
-    const idx = timeTicks === 0 ? 0 : Math.round((visibleLength - 1) * (i / timeTicks));
-    const x = padding + idx * stepX;
-    ctx.beginPath();
-    ctx.moveTo(x, height - padding);
-    ctx.lineTo(x, height - padding + 6);
-    ctx.stroke();
-    const label = startIndex + idx + 1;
-    ctx.fillStyle = '#cfd2e9';
-    ctx.font = '11px "Space Grotesk", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(label.toString(), x, height - padding + 8);
-  }
+  // ── Puntos de eventos (martingala win / loss) ─────────────────
+  visibleTimeline.forEach((entry, i) => {
+    if (!entry.tipo) return;
+    const x     = toX(i);
+    const y     = toY(entry.close);
+    const isWin = entry.tipo === 'acierto';
+    const dotColor = isWin ? '#22c55e' : '#ef4444';
 
-  const currentBalance = predictor.saldoMartingala;
-  const showZeroLine = minValue <= 0 && maxValue >= 0;
-  if (showZeroLine) {
-    const yZero =
-      padding + chartHeight - ((0 - minValue) / valueRange) * chartHeight;
-    ctx.strokeStyle =
-      currentBalance >= 0 ? 'rgba(34, 197, 94, 0.9)' : 'rgba(239, 68, 68, 0.9)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(padding, yZero);
-    ctx.lineTo(width - padding, yZero);
-    ctx.stroke();
-  }
+    // Halo
+    const glow = ctx.createRadialGradient(x, y, 0, x, y, 12);
+    glow.addColorStop(0, isWin ? 'rgba(34,197,94,0.45)' : 'rgba(239,68,68,0.45)');
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(x, y, 12, 0, Math.PI * 2); ctx.fill();
 
-  visibleTimeline.forEach((entry, index) => {
-    const x =
-      padding +
-      (visibleLength === 1 ? chartWidth / 2 : Math.min(chartWidth, index * stepX));
-    const yHigh =
-      padding + chartHeight - ((entry.high - minValue) / valueRange) * chartHeight;
-    const yLow =
-      padding + chartHeight - ((entry.low - minValue) / valueRange) * chartHeight;
-    const yOpen =
-      padding + chartHeight - ((entry.open - minValue) / valueRange) * chartHeight;
-    const yClose =
-      padding + chartHeight - ((entry.close - minValue) / valueRange) * chartHeight;
-    const positive = entry.close >= entry.open;
-    const color = positive ? '#22c55e' : '#ef4444';
+    // Círculo relleno
+    ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2);
+    ctx.fillStyle   = dotColor; ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
 
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(x, yHigh);
-    ctx.lineTo(x, yLow);
-    ctx.stroke();
-
-    const bodyTop = Math.min(yOpen, yClose);
-    const bodyHeight = Math.max(3, Math.abs(yClose - yOpen));
-    ctx.fillStyle = positive ? 'rgba(34, 149, 86, 0.9)' : 'rgba(239, 68, 68, 0.9)';
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1.5;
-    ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
-    ctx.strokeRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
-
-    if (chartState.hoverIndex === index) {
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath();
-      ctx.moveTo(padding, bodyTop);
-      ctx.lineTo(width - padding, bodyTop);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
+    // Delta encima del punto
+    const diff  = entry.close - entry.open;
+    const label = (diff >= 0 ? '+' : '') + '$' + Math.abs(Math.round(diff));
+    ctx.fillStyle     = isWin ? '#86efac' : '#fca5a5';
+    ctx.font          = 'bold 9px "Space Grotesk", sans-serif';
+    ctx.textAlign     = 'center';
+    ctx.textBaseline  = 'bottom';
+    ctx.fillText(label, x, y - 9);
   });
 
-  const hoverEntry =
-    chartState.hoverIndex !== null && visibleLength
-      ? visibleTimeline[chartState.hoverIndex]
-      : null;
-  if (hoverEntry) {
-    const yHover =
-      padding +
-      chartHeight -
-      ((hoverEntry.close - minValue) / valueRange) * chartHeight;
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([3, 4]);
-    ctx.beginPath();
-    ctx.moveTo(padding, yHover);
-    ctx.lineTo(width - padding, yHover);
-    ctx.stroke();
+  // ── Eje X ─────────────────────────────────────────────────────
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth   = 1;
+  ctx.beginPath();
+  ctx.moveTo(PAD_LEFT, PAD_TOP + chartHeight);
+  ctx.lineTo(width - PAD_RIGHT, PAD_TOP + chartHeight);
+  ctx.stroke();
+
+  const timeTicks = Math.min(visibleLength, 8);
+  for (let i = 0; i <= timeTicks; i++) {
+    const idx = timeTicks === 0 ? 0 : Math.round((visibleLength - 1) * (i / timeTicks));
+    const x   = toX(idx);
+    ctx.fillStyle    = 'rgba(203,213,255,0.6)';
+    ctx.font         = '10px "Space Grotesk", sans-serif';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText((startIndex + idx + 1).toString(), x, PAD_TOP + chartHeight + 5);
+  }
+  ctx.fillStyle    = 'rgba(203,213,255,0.35)';
+  ctx.font         = '10px "Space Grotesk", sans-serif';
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillText('Tirada #', width / 2, PAD_TOP + chartHeight + 20);
+
+  // ── Barra de stats (arriba del canvas) ───────────────────────
+  const netChange = closes[closes.length - 1] - closes[0];
+  const peak   = Math.max(...closes);
+  const trough = Math.min(...closes);
+  const isNetPos = netChange >= 0;
+
+  ctx.font         = 'bold 10px "Space Grotesk", sans-serif';
+  ctx.textBaseline = 'middle';
+  const statsY = PAD_TOP / 2;
+
+  ctx.fillStyle = isNetPos ? '#86efac' : '#fca5a5';
+  ctx.textAlign = 'left';
+  ctx.fillText(
+    `${isNetPos ? '▲' : '▼'} Neto: ${isNetPos ? '+' : '-'}$${Math.abs(Math.round(netChange))}`,
+    PAD_LEFT, statsY
+  );
+
+  ctx.fillStyle = '#86efac';
+  ctx.textAlign = 'center';
+  ctx.fillText(`Pico: +$${Math.round(peak)}`, width / 2 - 40, statsY);
+
+  ctx.fillStyle = '#fca5a5';
+  ctx.textAlign = 'center';
+  ctx.fillText(`Valle: -$${Math.abs(Math.round(trough))}`, width / 2 + 40, statsY);
+
+  ctx.fillStyle = currentBalance >= 0 ? '#86efac' : '#fca5a5';
+  ctx.textAlign = 'right';
+  ctx.fillText(
+    `Actual: ${currentBalance >= 0 ? '+' : '-'}$${Math.abs(Math.round(currentBalance))}`,
+    width - PAD_RIGHT, statsY
+  );
+
+  // ── Crosshair + tooltip ───────────────────────────────────────
+  if (chartState.hoverIndex !== null && chartState.hoverIndex < visibleLength) {
+    const hi    = chartState.hoverIndex;
+    const hx    = toX(hi);
+    const hEntry = visibleTimeline[hi];
+    const hy    = toY(hEntry.close);
+    const diff  = hEntry.close - hEntry.open;
+    const isWin = diff > 0;
+
+    // Líneas de crosshair
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth   = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(hx, PAD_TOP); ctx.lineTo(hx, PAD_TOP + chartHeight); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(PAD_LEFT, hy); ctx.lineTo(width - PAD_RIGHT, hy); ctx.stroke();
     ctx.setLineDash([]);
-  }
-};
+    ctx.restore();
 
-const handleSimulationUpload = (event) => {
-  event.preventDefault();
-  const file = elements.simulationFile?.files?.[0];
-  if (!file) {
-    alert('Selecciona un archivo .txt con los datos antes de procesar.');
-    return;
-  }
+    // Punto de hover
+    ctx.beginPath(); ctx.arc(hx, hy, 6, 0, Math.PI * 2);
+    ctx.fillStyle   = hEntry.close >= 0 ? '#22c55e' : '#ef4444';
+    ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
 
-  const reader = new FileReader();
-  setHeroLevel('Procesando simulación...');
-  reader.onload = (loadEvent) => {
-    const rawText = loadEvent.target?.result || '';
-    const parsedNumbers = parseNumbersFromText(rawText);
-    if (!parsedNumbers.length) {
-      logMessage('El archivo no contenía números válidos (0‑36).', 'error');
-      setHeroLevel('Nada procesado');
-      return;
-    }
+    // Tooltip
+    const TW = 148, TH = 78;
+    const tx = hx > width * 0.6 ? hx - TW - 10 : hx + 12;
+    const ty = Math.min(Math.max(hy - TH / 2, PAD_TOP + 4), PAD_TOP + chartHeight - TH - 4);
 
-    parsedNumbers.forEach((numero) => predictor.agregarNumero(numero));
-    saveState();
-    refreshUI();
-    logMessage(
-      `Simulación cargada (${parsedNumbers.length} números). Revisa el historial y el saldo.`,
-      'success'
+    ctx.fillStyle   = 'rgba(5,5,5,0.94)';
+    ctx.strokeStyle = hEntry.close >= 0 ? 'rgba(34,197,94,0.7)' : 'rgba(239,68,68,0.7)';
+    ctx.lineWidth   = 1.2;
+    ctx.beginPath();
+    ctx.roundRect(tx, ty, TW, TH, 8);
+    ctx.fill(); ctx.stroke();
+
+    ctx.textAlign    = 'left';
+    ctx.textBaseline = 'top';
+
+    ctx.fillStyle = 'rgba(203,213,255,0.6)';
+    ctx.font      = '10px "Space Grotesk", sans-serif';
+    ctx.fillText(`Tirada #${startIndex + hi + 1}`, tx + 10, ty + 10);
+
+    ctx.fillStyle = hEntry.close >= 0 ? '#86efac' : '#fca5a5';
+    ctx.font      = 'bold 16px "Space Grotesk", sans-serif';
+    ctx.fillText(
+      `${hEntry.close >= 0 ? '+' : '-'}$${Math.abs(Math.round(hEntry.close))}`,
+      tx + 10, ty + 26
     );
-    setHeroLevel('Simulación aplicada');
-    elements.simulationFile.value = '';
-  };
-  reader.onerror = () => {
-    logMessage('No se pudo leer el archivo seleccionado.', 'error');
-    setHeroLevel('Error leyendo archivo');
-  };
-  reader.readAsText(file);
+
+    ctx.fillStyle = diff === 0 ? 'rgba(255,255,255,0.4)' : (isWin ? '#86efac' : '#fca5a5');
+    ctx.font      = '11px "Space Grotesk", sans-serif';
+    ctx.fillText(
+      diff === 0
+        ? '— Sin cambio'
+        : `${isWin ? '▲ +' : '▼ -'}$${Math.abs(Math.round(diff))} vs anterior`,
+      tx + 10, ty + 52
+    );
+  }
 };
 
+
+// ─────────────────────────────────────────────
+// ESTADO Y PERSISTENCIA
+// ─────────────────────────────────────────────
 const updateLastSync = () => {
-  const time = new Date().toLocaleTimeString('es-CO');
-  elements.lastSync.textContent = `Última actualización: ${time}`;
+  elements.lastSync.textContent = `Última actualización: ${new Date().toLocaleTimeString('es-CO')}`;
 };
 
 const setHeroLevel = (text) => {
@@ -722,38 +905,41 @@ const loadState = () => {
   }
 };
 
+// ─────────────────────────────────────────────
+// RENDER CONFIG → PILLS DEL HERO
+// ─────────────────────────────────────────────
 const renderConfig = (config) => {
   if (!config) return;
-  elements.configTipoRuleta.textContent = config.tipoRuleta;
-  elements.configTipoJuego.textContent = config.tipoJuego;
-  elements.configMartingala.textContent = config.usarMartingala ? 'Activada' : 'Desactivada';
-  elements.configModo.textContent =
-    config.usarMartingala && config.modoMartingala === 2
+
+  // Pills del hero
+  if (elements.heroConfigTipoRuleta) elements.heroConfigTipoRuleta.textContent = config.tipoRuleta;
+  if (elements.heroConfigTipoJuego)  elements.heroConfigTipoJuego.textContent  = config.tipoJuego;
+  if (elements.heroConfigMartingala) elements.heroConfigMartingala.textContent = config.usarMartingala ? 'Activada ✅' : 'Desactivada';
+  if (elements.heroConfigModo) {
+    elements.heroConfigModo.textContent = config.usarMartingala && config.modoMartingala === 2
       ? 'Escalonada'
       : 'Conteo básico';
-  elements.configApuesta.textContent = `$${config.valorApuestaBase}`;
+  }
+  if (elements.heroConfigApuesta) {
+    elements.heroConfigApuesta.textContent = `$${Number(config.valorApuestaBase).toLocaleString('es-CO')}`;
+  }
 
-  elements.configSummary.innerHTML = `
-    <p class="result-card__message">
-      ${config.usarMartingala ? 'Martingala lista para operar.' : 'Martingala pausada.'}
-    </p>
-    <p class="result-card__meta">
-      ${config.tipoRuleta} • ${config.tipoJuego}
-    </p>
-  `;
-
-  elements.tipoRuleta.value = config.tipoRuleta;
-  elements.tipoJuego.value = config.tipoJuego;
-  elements.usarMartingala.checked = Boolean(config.usarMartingala);
-  elements.modoMartingala.value = config.modoMartingala;
-  elements.valorApuestaBase.value = config.valorApuestaBase;
+  // Sincronizar valores en el form del modal
+  if (elements.tipoRuleta) elements.tipoRuleta.value = config.tipoRuleta;
+  if (elements.tipoJuego)  elements.tipoJuego.value  = config.tipoJuego;
+  if (elements.usarMartingala) elements.usarMartingala.checked = Boolean(config.usarMartingala);
+  if (elements.modoMartingala) elements.modoMartingala.value  = config.modoMartingala;
+  if (elements.valorApuestaBase) elements.valorApuestaBase.value = config.valorApuestaBase;
   toggleMartingalaFields(config.usarMartingala);
 };
 
 const toggleMartingalaFields = (show) => {
-  elements.martingalaDetails.style.display = show ? 'flex' : 'none';
+  if (elements.martingalaDetails) elements.martingalaDetails.style.display = show ? 'flex' : 'none';
 };
 
+// ─────────────────────────────────────────────
+// RENDER STATS, HISTORY, UI
+// ─────────────────────────────────────────────
 const renderStats = (stats) => {
   if (!stats) return;
   const { colores, total, topNumeros, saldoMartingala: saldo, config } = stats;
@@ -762,11 +948,10 @@ const renderStats = (stats) => {
   elements.valorApuesta.textContent = `$${config.valorApuestaBase}`;
 
   const percent = (valor) => (total ? Math.round((valor / total) * 100) : 0);
-
-  elements.barRojo.style.width = `${percent(colores.rojo)}%`;
-  elements.barNegro.style.width = `${percent(colores.negro)}%`;
-  elements.barVerde.style.width = `${percent(colores.verde)}%`;
-  elements.labelRojo.textContent = `${percent(colores.rojo)}%`;
+  elements.barRojo.style.width   = `${percent(colores.rojo)}%`;
+  elements.barNegro.style.width  = `${percent(colores.negro)}%`;
+  elements.barVerde.style.width  = `${percent(colores.verde)}%`;
+  elements.labelRojo.textContent  = `${percent(colores.rojo)}%`;
   elements.labelNegro.textContent = `${percent(colores.negro)}%`;
   elements.labelVerde.textContent = `${percent(colores.verde)}%`;
 
@@ -807,70 +992,31 @@ const renderHistory = (historial) => {
   });
 };
 
-// ── CORREGIDA: verifica existencia antes de escribir ──────────────
-const renderLatestResult = (payload) => {
-  if (!payload) return;
-  if (!elements.latestMessage) return;
-  const { numero, color, resultado, martingala } = payload;
-  const message = resultado?.mensaje || 'Respuesta procesada.';
-  elements.latestMessage.textContent = message;
-
-  const meta = [];
-  if (numero !== undefined) meta.push(`Número: ${numero}`);
-  if (color) meta.push(`Color: ${color}`);
-  if (resultado?.etapa) meta.push(`Etapa: ${resultado.etapa}`);
-  if (martingala) {
-    meta.push(`Saldo Martingala: ${martingala.saldo ?? elements.saldoMartingala.textContent}`);
-    if (martingala.proximaApuesta) {
-      meta.push(`Próxima apuesta: ${martingala.proximaApuesta}`);
-    }
-  } else {
-    meta.push(`Saldo Martingala: ${predictor.saldoMartingala}`);
-  }
-
-  if (elements.latestMeta) elements.latestMeta.textContent = meta.join(' • ');
-};
-
-// ── CORREGIDA: verifica existencia antes de escribir ──────────────
 const refreshUI = () => {
   const stats = predictor.getEstadisticas();
   renderStats(stats);
   renderHistory(predictor.historialNumeros);
   renderBalanceChart();
   updateBalanceSummary();
-  const payload = predictor.ultimoResultado;
-  if (payload) {
-    renderLatestResult(payload);
-  } else {
-    if (elements.latestMessage) elements.latestMessage.textContent = DEFAULT_LATEST_MESSAGE;
-    if (elements.latestMeta) elements.latestMeta.textContent = '';
-  }
   updateLastSync();
 };
 
-// ── CORREGIDA: verifica existencia antes de escribir ──────────────
 const resetSession = () => {
   setHeroLevel('Reiniciando sesión...');
   predictor.resetState();
   saveState();
   renderStats(predictor.getEstadisticas());
   renderHistory(predictor.historialNumeros);
-  if (elements.latestMessage) {
-    elements.latestMessage.textContent = 'Sesión reiniciada. Ingresa un número para reactivar el flujo.';
-  }
-  if (elements.latestMeta) elements.latestMeta.textContent = '';
   logMessage('Sesión reiniciada en el cliente', 'success');
   setHeroLevel('Listo con estado limpio');
   updateLastSync();
 };
 
-const openModal = () => {
-  elements.configModal.setAttribute('aria-hidden', 'false');
-};
-
-const closeModal = () => {
-  elements.configModal.setAttribute('aria-hidden', 'true');
-};
+// ─────────────────────────────────────────────
+// MODAL
+// ─────────────────────────────────────────────
+const openModal = () => elements.configModal.setAttribute('aria-hidden', 'false');
+const closeModal = () => elements.configModal.setAttribute('aria-hidden', 'true');
 
 const handleConfigSubmit = (event) => {
   event.preventDefault();
@@ -898,60 +1044,47 @@ const handleConfigSubmit = (event) => {
   }
 };
 
+// ─────────────────────────────────────────────
+// RULETA PAD
+// ─────────────────────────────────────────────
 const buildRoulettePad = () => {
   const pad = document.getElementById('roulettePad');
   if (!pad) return;
-
-  // 🔥 limpiar por si se vuelve a ejecutar
   pad.innerHTML = '';
 
   const rows = [
-    [3,6,9,12,15,18,21,24,27,30,33,36],
-    [2,5,8,11,14,17,20,23,26,29,32,35],
-    [1,4,7,10,13,16,19,22,25,28,31,34]
+    [3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36],
+    [2, 5, 8, 11, 14, 17, 20, 23, 26, 29, 32, 35],
+    [1, 4, 7, 10, 13, 16, 19, 22, 25, 28, 31, 34]
   ];
 
-  rows.forEach(row => {
-    row.forEach(num => {
+  rows.forEach((row) => {
+    row.forEach((num) => {
       const color = RULETA_COLORES[num];
-
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.textContent = num;
-
-      // clases correctas
-      if (color === 'rojo') {
-        btn.className = 'num-red';
-      } else {
-        btn.className = 'num-black';
-      }
-
+      btn.className = color === 'rojo' ? 'num-red' : 'num-black';
       btn.dataset.num = num;
-
       btn.addEventListener('click', () => selectNumber(num, btn));
-
       pad.appendChild(btn);
     });
   });
 
-  // ✅ agregar el 0 UNA sola vez
   const zeroBtn = document.createElement('button');
   zeroBtn.type = 'button';
   zeroBtn.textContent = '0';
   zeroBtn.className = 'num-green';
   zeroBtn.dataset.num = 0;
-
   zeroBtn.addEventListener('click', () => selectNumber(0, zeroBtn));
-
   pad.appendChild(zeroBtn);
 };
+
 const selectNumber = (num, btn) => {
   document.querySelectorAll('#roulettePad button.selected')
-    .forEach(b => b.classList.remove('selected'));
-
+    .forEach((b) => b.classList.remove('selected'));
   selectedNumber = num;
   btn.classList.add('selected');
-
   const color = RULETA_COLORES[num];
   const label = color === 'rojo' ? 'Rojo' : color === 'negro' ? 'Negro' : 'Verde';
   const display = document.getElementById('selectedDisplay');
@@ -967,15 +1100,13 @@ const handlePadSubmit = () => {
   setHeroLevel('Procesando número...');
   try {
     const payload = predictor.agregarNumero(selectedNumber);
-    lastPayload = payload;
     saveState();
-    renderLatestResult(payload);
     renderStats(payload.estadisticas);
     renderHistory(predictor.historialNumeros);
     renderBalanceChart();
     updateBalanceSummary();
     logMessage(
-      `Número ${selectedNumber} registrado → ${payload.resultado?.mensaje}`,
+      `Número ${selectedNumber} → ${payload.resultado?.mensaje}`,
       payload.resultado?.acierto ? 'success' : 'warn'
     );
     setHeroLevel('Número procesado');
@@ -985,36 +1116,55 @@ const handlePadSubmit = () => {
   } finally {
     selectedNumber = null;
     document.querySelectorAll('#roulettePad button.selected')
-      .forEach(b => b.classList.remove('selected'));
+      .forEach((b) => b.classList.remove('selected'));
     const display = document.getElementById('selectedDisplay');
     if (display) display.textContent = 'Ningún número seleccionado';
     updateLastSync();
   }
 };
 
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
 const init = () => {
   loadState();
+
   const statusMessage = predictor.historialNumeros.length
     ? 'Estado restaurado desde almacenamiento local'
     : 'Flujo en blanco: empieza registrando un número';
   logMessage(statusMessage, 'info');
+
   refreshUI();
-  const submitBtn = document.getElementById('submitNumBtn');
-  if (submitBtn) {
-    submitBtn.addEventListener('click', handlePadSubmit);
-  }
   buildRoulettePad();
+
+  // Botones principales
   elements.openConfigBtn.addEventListener('click', openModal);
-  elements.openInlineConfig.addEventListener('click', openModal);
+  elements.resetBtn.addEventListener('click', resetSession);
   elements.closeConfigModal.addEventListener('click', closeModal);
   elements.cancelConfig.addEventListener('click', closeModal);
-  elements.resetBtn.addEventListener('click', resetSession);
   elements.configForm.addEventListener('submit', handleConfigSubmit);
-  elements.usarMartingala.addEventListener('change', (event) => toggleMartingalaFields(event.target.checked));
-  if (elements.simulationForm) {
-    elements.simulationForm.addEventListener('submit', handleSimulationUpload);
-  }
+  elements.usarMartingala.addEventListener('change', (e) => toggleMartingalaFields(e.target.checked));
+
+  // Cerrar modal con Escape
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeModal();
+  });
+
+  // Botón submit del pad
+  const submitBtn = document.getElementById('submitNumBtn');
+  if (submitBtn) submitBtn.addEventListener('click', handlePadSubmit);
+
+  // Simulación
+  if (elements.simulationForm) elements.simulationForm.addEventListener('submit', handleSimulationUpload);
+  if (elements.simulationFile) elements.simulationFile.addEventListener('change', handleFileChange);
+  setupDragAndDrop();
+
+  // Descargar plantilla
+  if (elements.downloadTemplateBtn) elements.downloadTemplateBtn.addEventListener('click', downloadTemplate);
+
   renderSimulationSuggestions();
+
+  // Gráfico
   window.addEventListener('resize', renderBalanceChart);
   if (elements.zoomRange) {
     elements.zoomRange.addEventListener('input', handleZoomChange);
@@ -1023,15 +1173,12 @@ const init = () => {
   if (elements.balanceCanvas) {
     elements.balanceCanvas.addEventListener('mousemove', handleChartHover);
     elements.balanceCanvas.addEventListener('mouseleave', handleChartLeave);
-    elements.balanceCanvas.addEventListener('touchmove', (event) => {
-      handleChartHover(event.touches?.[0] || event);
-    });
-    elements.balanceCanvas.addEventListener('touchstart', (event) => {
-      handleChartHover(event.touches?.[0] || event);
-    });
+    elements.balanceCanvas.addEventListener('touchmove', (e) => handleChartHover(e.touches?.[0] || e));
+    elements.balanceCanvas.addEventListener('touchstart', (e) => handleChartHover(e.touches?.[0] || e));
     elements.balanceCanvas.addEventListener('touchend', handleChartLeave);
   }
+
   updateHoverInfo(null);
 };
 
-document.addEventListener('DOMContentLoaded', init);
+init();

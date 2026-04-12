@@ -20,6 +20,33 @@
           información de cada tirada sin salida a frameworks: solo HTML, CSS y
           JavaScript.
         </p>
+
+        <!-- ── CONFIG ACTIVA INLINE EN EL HERO ── -->
+        <div class="hero__config" id="heroConfig">
+          <div class="hero__config-pills">
+            <span class="config-pill">
+              <span class="config-pill__label">Ruleta</span>
+              <strong class="config-pill__value" id="heroConfigTipoRuleta">Física</strong>
+            </span>
+            <span class="config-pill">
+              <span class="config-pill__label">Juego</span>
+              <strong class="config-pill__value" id="heroConfigTipoJuego">Contra humanos</strong>
+            </span>
+            <span class="config-pill">
+              <span class="config-pill__label">Martingala</span>
+              <strong class="config-pill__value" id="heroConfigMartingala">Desactivada</strong>
+            </span>
+            <span class="config-pill">
+              <span class="config-pill__label">Modo</span>
+              <strong class="config-pill__value" id="heroConfigModo">Conteo básico</strong>
+            </span>
+            <span class="config-pill config-pill--accent">
+              <span class="config-pill__label">Apuesta base</span>
+              <strong class="config-pill__value" id="heroConfigApuesta">$1.000</strong>
+            </span>
+          </div>
+        </div>
+
         <div class="hero__actions">
           <button id="openConfigBtn" type="button" class="btn primary">
             Configurar sistema
@@ -35,6 +62,7 @@
       </header>
 
       <main>
+        <!-- GRÁFICO -->
         <section class="panel panel--chart">
           <header class="panel__header">
             <div>
@@ -78,44 +106,23 @@
           </div>
         </section>
 
+        <!-- GRID: BITÁCORA + INGRESO DE NÚMERO -->
         <section class="grid grid--two">
-          <article class="panel panel--config">
-            <div class="panel__header">
+
+          <!-- BITÁCORA (tomó el lugar de config) -->
+          <article class="panel panel--log">
+            <header class="panel__header">
               <div>
-                <p class="eyebrow">Configuración activa</p>
-                <h2>Contexto de juego</h2>
+                <p class="eyebrow">Bitácora de eventos</p>
+                <h2>Registro de acciones</h2>
               </div>
-              <button id="openInlineConfig" type="button" class="btn text">
-                Editar
-              </button>
-            </div>
-            <div class="config__summary" id="configSummary">
-              <p class="config__placeholder">Cargando configuración...</p>
-            </div>
-            <div class="config__grid">
-              <div>
-                <span>Tipo de ruleta</span>
-                <strong id="configTipoRuleta">—</strong>
-              </div>
-              <div>
-                <span>Tipo de juego</span>
-                <strong id="configTipoJuego">—</strong>
-              </div>
-              <div>
-                <span>Martingala</span>
-                <strong id="configMartingala">—</strong>
-              </div>
-              <div>
-                <span>Modo Martingala</span>
-                <strong id="configModo">—</strong>
-              </div>
-              <div>
-                <span>Apuesta base</span>
-                <strong id="configApuesta">$0</strong>
-              </div>
+            </header>
+            <div id="logList" class="log-list">
+              <p class="placeholder">El sistema arrancará aquí.</p>
             </div>
           </article>
 
+          <!-- INGRESO DE NÚMERO -->
           <article class="panel panel--input">
             <div class="panel__header">
               <div>
@@ -135,7 +142,7 @@
           </article>
         </section>
 
-
+        <!-- GRID: ESTADÍSTICAS + HISTORIAL -->
         <section class="grid grid--two mt-1">
           <article class="panel panel--stats">
             <header class="panel__header">
@@ -202,22 +209,7 @@
           </article>
         </section>
 
-
-        <section class="panel panel--log">
-          <header class="panel__header">
-            <div>
-              <p class="eyebrow">Bitácora de eventos</p>
-              <h2>Registro de acciones</h2>
-            </div>
-          </header>
-          <div id="logList" class="log-list">
-            <p class="placeholder">El sistema arrancará aquí.</p>
-          </div>
-        </section>
-      </main>
-    </div>
-
-
+        <!-- SIMULACIONES (de vuelta dentro de main) -->
         <section class="panel panel--simulation">
           <header class="panel__header">
             <div>
@@ -226,17 +218,36 @@
             </div>
           </header>
           <p class="panel__description">
-            Exporta tus tiradas en un arreglo como el ejemplo (`[30, 18, 5, …]`) y súbelo aquí. El
+            Exporta tus tiradas en un arreglo como el ejemplo (<code>[30, 18, 5, …]</code>) y súbelo aquí. El
             sistema procesará cada número en orden, completará el historial, actualizará las barras
             y te mostrará cómo responde la martingala ante los patrones que tú defines.
           </p>
+
           <form id="simulationForm" class="simulation-form">
-            <label class="simulation-form__label" for="simulationFile">
-              Archivo .txt con formato de arreglo
-            </label>
-            <input type="file" id="simulationFile" accept=".txt" />
-            <button type="submit" class="btn primary">Procesar archivo</button>
+            <!-- FILE INPUT CUSTOM -->
+            <div class="file-upload-area" id="fileUploadArea">
+              <input
+                type="file"
+                id="simulationFile"
+                accept=".txt"
+                class="file-upload__input"
+              />
+              <div class="file-upload__icon">📂</div>
+              <p class="file-upload__title">Arrastra tu archivo aquí</p>
+              <p class="file-upload__hint">o haz clic para seleccionar un <strong>.txt</strong></p>
+              <span class="file-upload__name" id="fileUploadName">Ningún archivo seleccionado</span>
+            </div>
+
+            <div class="simulation-form__actions">
+              <button type="submit" class="btn primary">
+                ▶ Procesar archivo
+              </button>
+              <button type="button" id="downloadTemplateBtn" class="btn ghost">
+                ↓ Descargar plantilla
+              </button>
+            </div>
           </form>
+
           <div class="simulation__notes">
             <h3>Sugerencias rápidas</h3>
             <ul id="suggestionsList">
@@ -247,6 +258,10 @@
           </div>
         </section>
 
+      </main>
+    </div>
+
+    <!-- MODAL CONFIGURACIÓN -->
     <div class="modal" id="configModal" aria-hidden="true">
       <div class="modal__backdrop"></div>
       <div class="modal__content">
