@@ -1,5 +1,6 @@
 const STORAGE_KEY = 'ruletaPredictorState';
 const DEFAULT_LATEST_MESSAGE = 'Ningún número registrado aún.';
+const MAX_HISTORIAL_REGISTROS = 1000;
 
 const RULETA_COLORES = {
   0: 'verde',
@@ -35,20 +36,27 @@ class RuletaPredictor {
     this.resetState();
   }
 
+  calcularNivelesMartingala(base) {
+    const b = Number(base) || 1000;
+    return [b, b * 2, b * 4, b * 8, b * 16, b * 32];
+  }
+
   getDefaultConfig() {
+    const base = 1000;
     return {
       tipoRuleta: 'Física',
       tipoJuego: 'Contra humanos',
       usarMartingala: false,
       modoMartingala: 1,
-      valorApuestaBase: 1000,
-      nivelesMartingala: [500, 1000, 2000, 4000, 8000, 16000]
+      valorApuestaBase: base,
+      nivelesMartingala: this.calcularNivelesMartingala(base)
     };
   }
 
   resetState() {
     const config = this.getDefaultConfig();
     this.historialNumeros = [];
+    this.totalTiradasContador = 0;
     this.patronActivo = false;
     this.patronActual = [];
     this.etapaActual = 0;
@@ -63,21 +71,34 @@ class RuletaPredictor {
   loadState(state) {
     if (!state) return;
     this.historialNumeros = Array.isArray(state.historialNumeros) ? state.historialNumeros : [];
+    if (this.historialNumeros.length > MAX_HISTORIAL_REGISTROS) {
+      this.historialNumeros = this.historialNumeros.slice(-MAX_HISTORIAL_REGISTROS);
+    }
+    this.totalTiradasContador = typeof state.totalTiradasContador === 'number'
+      ? state.totalTiradasContador
+      : this.historialNumeros.length;
     this.patronActivo = state.patronActivo ?? false;
     this.patronActual = Array.isArray(state.patronActual) ? state.patronActual : [];
     this.etapaActual = state.etapaActual ?? 0;
     this.config = { ...this.getDefaultConfig(), ...state.config };
+    if (!Array.isArray(this.config.nivelesMartingala) || !this.config.nivelesMartingala.length) {
+      this.config.nivelesMartingala = this.calcularNivelesMartingala(this.config.valorApuestaBase);
+    }
     this.saldoMartingala = state.saldoMartingala ?? 0;
     this.nivelMartingala = state.nivelMartingala ?? 0;
     this.apuestaActual =
       typeof state.apuestaActual === 'number' ? state.apuestaActual : this.config.valorApuestaBase;
     this.ultimoResultado = state.ultimoResultado || null;
     this.balanceTimeline = Array.isArray(state.balanceTimeline) ? state.balanceTimeline : [];
+    if (this.balanceTimeline.length > MAX_HISTORIAL_REGISTROS) {
+      this.balanceTimeline = this.balanceTimeline.slice(-MAX_HISTORIAL_REGISTROS);
+    }
   }
 
   serializeState() {
     return {
       historialNumeros: this.historialNumeros,
+      totalTiradasContador: this.totalTiradasContador,
       patronActivo: this.patronActivo,
       patronActual: this.patronActual,
       etapaActual: this.etapaActual,
@@ -185,41 +206,45 @@ class RuletaPredictor {
     let cambio = null;
 
     if (modo === 1) {
+      const valor = this.config.valorApuestaBase || 1000;
       if (esAciertoE) {
-        this.saldoMartingala += 1;
-        cambio = { tipo: 'acierto', saldo: this.saldoMartingala };
+        this.saldoMartingala += valor;
+        cambio = { tipo: 'acierto', saldo: this.saldoMartingala, monto: valor };
       } else if (esFalloE) {
-        this.saldoMartingala -= 1;
-        cambio = { tipo: 'fallo', saldo: this.saldoMartingala };
+        this.saldoMartingala -= valor;
+        cambio = { tipo: 'fallo', saldo: this.saldoMartingala, monto: valor };
       }
     } else {
+      const montoApostado = this.apuestaActual;
       if (esAciertoE) {
-        this.saldoMartingala += this.apuestaActual;
+        this.saldoMartingala += montoApostado;
         this.nivelMartingala = 0;
-        this.apuestaActual = this.config.nivelesMartingala[this.nivelMartingala];
-        cambio = { tipo: 'acierto', saldo: this.saldoMartingala, proximaApuesta: this.apuestaActual };
+        this.apuestaActual = this.config.nivelesMartingala[this.nivelMartingala] || this.config.valorApuestaBase;
+        cambio = { tipo: 'acierto', saldo: this.saldoMartingala, proximaApuesta: this.apuestaActual, monto: montoApostado };
       } else if (esFalloE) {
-        this.saldoMartingala -= this.apuestaActual;
+        this.saldoMartingala -= montoApostado;
         this.nivelMartingala++;
         if (this.nivelMartingala >= this.config.nivelesMartingala.length) {
           this.nivelMartingala = this.config.nivelesMartingala.length - 1;
         }
-        this.apuestaActual = this.config.nivelesMartingala[this.nivelMartingala];
-        cambio = { tipo: 'fallo', saldo: this.saldoMartingala, proximaApuesta: this.apuestaActual, nivel: this.nivelMartingala };
+        this.apuestaActual = this.config.nivelesMartingala[this.nivelMartingala] || this.config.valorApuestaBase;
+        cambio = { tipo: 'fallo', saldo: this.saldoMartingala, proximaApuesta: this.apuestaActual, nivel: this.nivelMartingala, monto: montoApostado };
       }
     }
 
     return cambio;
   }
 
-  recordBalanceStep(previousBalance, martingalaCambio) {
+  recordBalanceStep(previousBalance, martingalaCambio, tiradaNumero) {
     const open = previousBalance;
     const close = this.saldoMartingala;
     const high = Math.max(open, close);
     const low  = Math.min(open, close);
     const tipo = martingalaCambio?.tipo || null; // 'acierto', 'fallo', o null
-    this.balanceTimeline.push({ open, high, low, close, tipo });
-    if (this.balanceTimeline.length > 500) this.balanceTimeline.shift();
+    this.balanceTimeline.push({ open, high, low, close, tipo, tiradaNumero });
+    if (this.balanceTimeline.length > MAX_HISTORIAL_REGISTROS) {
+      this.balanceTimeline.shift();
+    }
   }
 
   getBalanceTimeline() { return this.balanceTimeline; }
@@ -240,18 +265,27 @@ class RuletaPredictor {
     const resultado = this.analizarPatron(numero);
     const martingala = this.procesarMartingala(resultado);
 
-    // ← Siempre graba, no solo cuando martingala actúa
-    this.recordBalanceStep(previousBalance, martingala);
+    this.totalTiradasContador++;
+    this.recordBalanceStep(previousBalance, martingala, this.totalTiradasContador);
 
-    const registro = { numero, color, timestamp: new Date().toISOString(), resultado };
+    const registro = {
+      numero,
+      color,
+      timestamp: new Date().toISOString(),
+      resultado,
+      tiradaNumero: this.totalTiradasContador
+    };
     this.historialNumeros.push(registro);
-    if (this.historialNumeros.length > 1000) this.historialNumeros.shift();
-    this.ultimoResultado = { numero, color, resultado, martingala };
+    if (this.historialNumeros.length > MAX_HISTORIAL_REGISTROS) {
+      this.historialNumeros.shift();
+    }
+    this.ultimoResultado = { numero, color, resultado, martingala, tiradaNumero: this.totalTiradasContador };
     return { ...this.ultimoResultado, estadisticas: this.getEstadisticas() };
   }
 
   getEstadisticas() {
-    const total = this.historialNumeros.length;
+    const total = this.totalTiradasContador || this.historialNumeros.length;
+    const totalHistorial = this.historialNumeros.length;
     const colores = { rojo: 0, negro: 0, verde: 0 };
     const frecuenciaNumeros = {};
 
@@ -265,15 +299,33 @@ class RuletaPredictor {
       .sort((a, b) => b.veces - a.veces)
       .slice(0, 15);
 
-    return { total, colores, topNumeros, saldoMartingala: this.saldoMartingala, config: this.config };
+    return { total, totalHistorial, colores, topNumeros, saldoMartingala: this.saldoMartingala, config: this.config };
   }
 
   actualizarConfig(nuevaConfig) {
+    const martingalaEstabaActiva = Boolean(this.config.usarMartingala);
+    const baseAnterior = this.config.valorApuestaBase;
+
     this.config = { ...this.config, ...nuevaConfig };
+
+    // Si la apuesta base cambió o faltan niveles, recalcular escala proporcional
+    if (this.config.valorApuestaBase !== baseAnterior || !this.config.nivelesMartingala?.length) {
+      this.config.nivelesMartingala = this.calcularNivelesMartingala(this.config.valorApuestaBase);
+    }
+
     if (this.config.usarMartingala) {
-      this.apuestaActual = this.config.valorApuestaBase;
-      this.saldoMartingala = 0;
-      this.nivelMartingala = 0;
+      // Si se activa por primera vez en la sesión, inicializar apuesta
+      if (!martingalaEstabaActiva) {
+        this.apuestaActual = this.config.valorApuestaBase;
+        this.nivelMartingala = 0;
+      } else {
+        // Si ya estaba activa y está en nivel 0, actualizar con la nueva base
+        if (this.nivelMartingala === 0) {
+          this.apuestaActual = this.config.valorApuestaBase;
+        } else {
+          this.apuestaActual = this.config.nivelesMartingala[this.nivelMartingala] || this.config.valorApuestaBase;
+        }
+      }
     }
     return this.config;
   }
@@ -346,18 +398,31 @@ const elements = {
 let selectedNumber = null;
 
 // ─────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────
+const formatCurrency = (val, showPlus = false) => {
+  const num = Number(val) || 0;
+  const isPos = num >= 0;
+  const prefix = isPos ? (showPlus ? '+$' : '$') : '-$';
+  return `${prefix}${Math.abs(Math.round(num)).toLocaleString('es-CO')}`;
+};
+
+// ─────────────────────────────────────────────
 // LOG
 // ─────────────────────────────────────────────
 const logMessage = (text, tone = 'info') => {
+  if (!elements.logList) return;
   const card = document.createElement('div');
   card.className = 'log-card';
   card.dataset.tone = tone;
-  const timestamp = new Date().toLocaleTimeString('es-CO');
-  card.innerHTML = `<strong>${timestamp}</strong> — ${text}`;
+  const strong = document.createElement('strong');
+  strong.textContent = new Date().toLocaleTimeString('es-CO');
+  card.appendChild(strong);
+  card.appendChild(document.createTextNode(` — ${text}`));
   const firstChild = elements.logList.firstElementChild;
   if (firstChild && firstChild.classList.contains('placeholder')) firstChild.remove();
   elements.logList.prepend(card);
-  if (elements.logList.childElementCount > 8) elements.logList.lastElementChild.remove();
+  if (elements.logList.childElementCount > 20) elements.logList.lastElementChild.remove();
 };
 
 // ─────────────────────────────────────────────
@@ -417,7 +482,7 @@ const setupDragAndDrop = () => {
     e.preventDefault();
     area.classList.remove('drag-over');
     const file = e.dataTransfer?.files?.[0];
-    if (file && file.name.endsWith('.txt')) {
+    if (file && file.name.toLowerCase().endsWith('.txt')) {
       // Asignar al input de archivo vía DataTransfer
       const dt = new DataTransfer();
       dt.items.add(file);
@@ -433,10 +498,36 @@ const setupDragAndDrop = () => {
 // SIMULACIÓN
 // ─────────────────────────────────────────────
 const parseNumbersFromText = (text) => {
-  const matches = text.match(/-?\d+/g) || [];
-  return matches
+  if (!text || typeof text !== 'string') return [];
+
+  // 1. Eliminar comentarios multilínea (/* ... */)
+  let clean = text.replace(/\/\*[\s\S]*?\*\//g, ' ');
+
+  // 2. Eliminar comentarios de una línea (// o #), tanto líneas completas como comentarios al final de línea
+  clean = clean
+    .split(/\r?\n/)
+    .map((line) => {
+      const idx = line.search(/(\/\/|#)/);
+      return idx !== -1 ? line.slice(0, idx) : line;
+    })
+    .join('\n');
+
+  // 3. Normalizar guiones entre números (separadores como 10-20 o 10 - 20) por espacios
+  clean = clean.replace(/(?<=\d)\s*-\s*(?=\d)/g, ' ');
+
+  // 4. Si contiene corchetes [...], extraer prioritariamente el arreglo dentro de corchetes
+  const bracketMatches = [...clean.matchAll(/\[([\s\S]*?)\]/g)]
+    .map((m) => m[1])
+    .join(' ');
+
+  const targetText = bracketMatches.trim().length > 0 ? bracketMatches : clean;
+
+  // 5. Capturar números enteros independientes (0 a 36), ignorando negativos o palabras
+  const tokens = targetText.match(/-?\b\d+\b/g) || [];
+
+  return tokens
     .map((v) => Number(v))
-    .filter((v) => Number.isFinite(v) && v >= 0 && v <= 36);
+    .filter((v) => Number.isInteger(v) && v >= 0 && v <= 36);
 };
 
 const simulationSuggestions = [
@@ -515,13 +606,15 @@ const updateHoverInfo = (entry, absoluteIndex = null) => {
     elements.hoverSaldo.textContent = 'Saldo actual: —';
     return;
   }
-  elements.hoverLaunch.textContent = `Lanzamiento: ${absoluteIndex ?? '—'}`;
-  elements.hoverSaldo.textContent = `Saldo actual: $${entry.close.toLocaleString('es-CO')}`;
+  const tiradaNum = entry.tiradaNumero ?? absoluteIndex ?? '—';
+  elements.hoverLaunch.textContent = `Lanzamiento: #${tiradaNum}`;
+  elements.hoverSaldo.textContent = `Saldo actual: ${formatCurrency(entry.close)}`;
 };
 
 const handleZoomChange = () => {
   if (!elements.zoomRange) return;
   chartState.windowSize = Number(elements.zoomRange.value) || 60;
+  updateZoomLabel(chartState.windowSize);
   renderBalanceChart();
 };
 
@@ -535,7 +628,7 @@ const handleChartHover = (event) => {
   const x = event.clientX - rect.left;
   const { padLeft, chartWidth, timelineLength } = render;
 
-  if (!timelineLength) { chartState.hoverIndex = null; updateHoverInfo(null); return; }
+  if (!timelineLength || chartWidth <= 0) { chartState.hoverIndex = null; updateHoverInfo(null); return; }
 
   const relX  = Math.max(0, Math.min(chartWidth, x - padLeft));
   const index = timelineLength > 1
@@ -557,12 +650,12 @@ const handleChartLeave = () => {
 const updateBalanceSummary = () => {
   if (!elements.balanceHigh) return;
   const { high, low } = predictor.getBalanceExtremes();
-  elements.balanceHigh.textContent = `$${high.toLocaleString('es-CO')}`;
-  elements.balanceLow.textContent = `$${low.toLocaleString('es-CO')}`;
-  elements.balanceDiff.textContent = `$${(high - low).toLocaleString('es-CO')}`;
+  elements.balanceHigh.textContent = formatCurrency(high);
+  elements.balanceLow.textContent = formatCurrency(low);
+  elements.balanceDiff.textContent = formatCurrency(high - low);
   if (elements.balanceCurrent) {
     const current = predictor.saldoMartingala;
-    elements.balanceCurrent.textContent = `$${current.toLocaleString('es-CO')}`;
+    elements.balanceCurrent.textContent = formatCurrency(current);
     elements.balanceCurrent.style.color = current >= 0 ? 'rgb(34,197,94)' : 'rgb(239,68,68)';
   }
 };
@@ -575,6 +668,7 @@ const renderBalanceChart = () => {
   const dpr    = window.devicePixelRatio || 1;
   const width  = rect.width;
   const height = rect.height;
+  if (width <= 0 || height <= 0) return;
 
   const targetW = Math.round(width  * dpr);
   const targetH = Math.round(height * dpr);
@@ -614,7 +708,7 @@ const renderBalanceChart = () => {
   } else {
     chartState.hoverIndex = null;
   }
-  updateZoomLabel(visibleLength);
+  updateZoomLabel(chartState.windowSize);
 
   // ── Fondo ─────────────────────────────────────────────────────
   ctx.fillStyle = 'rgba(3,3,3,0.9)';
@@ -764,15 +858,17 @@ const renderBalanceChart = () => {
   ctx.lineTo(width - PAD_RIGHT, PAD_TOP + chartHeight);
   ctx.stroke();
 
-  const timeTicks = Math.min(visibleLength, 8);
+  const timeTicks = Math.min(visibleLength - 1, 8);
   for (let i = 0; i <= timeTicks; i++) {
     const idx = timeTicks === 0 ? 0 : Math.round((visibleLength - 1) * (i / timeTicks));
     const x   = toX(idx);
+    const entry = visibleTimeline[idx];
+    const tiradaNum = entry?.tiradaNumero ?? (startIndex + idx + 1);
     ctx.fillStyle    = 'rgba(203,213,255,0.6)';
     ctx.font         = '10px "Space Grotesk", sans-serif';
     ctx.textAlign    = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText((startIndex + idx + 1).toString(), x, PAD_TOP + chartHeight + 5);
+    ctx.fillText(tiradaNum.toString(), x, PAD_TOP + chartHeight + 5);
   }
   ctx.fillStyle    = 'rgba(203,213,255,0.35)';
   ctx.font         = '10px "Space Grotesk", sans-serif';
@@ -846,7 +942,11 @@ const renderBalanceChart = () => {
     ctx.strokeStyle = hEntry.close >= 0 ? 'rgba(34,197,94,0.7)' : 'rgba(239,68,68,0.7)';
     ctx.lineWidth   = 1.2;
     ctx.beginPath();
-    ctx.roundRect(tx, ty, TW, TH, 8);
+    if (typeof ctx.roundRect === 'function') {
+      ctx.roundRect(tx, ty, TW, TH, 8);
+    } else {
+      ctx.rect(tx, ty, TW, TH);
+    }
     ctx.fill(); ctx.stroke();
 
     ctx.textAlign    = 'left';
@@ -854,7 +954,8 @@ const renderBalanceChart = () => {
 
     ctx.fillStyle = 'rgba(203,213,255,0.6)';
     ctx.font      = '10px "Space Grotesk", sans-serif';
-    ctx.fillText(`Tirada #${startIndex + hi + 1}`, tx + 10, ty + 10);
+    const tiradaNum = hEntry?.tiradaNumero ?? (startIndex + hi + 1);
+    ctx.fillText(`Tirada #${tiradaNum}`, tx + 10, ty + 10);
 
     ctx.fillStyle = hEntry.close >= 0 ? '#86efac' : '#fca5a5';
     ctx.font      = 'bold 16px "Space Grotesk", sans-serif';
@@ -891,6 +992,14 @@ const saveState = () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(predictor.serializeState()));
   } catch (error) {
     console.warn('No se pudo guardar el estado localmente', error);
+    try {
+      const compactState = predictor.serializeState();
+      compactState.historialNumeros = compactState.historialNumeros.slice(-300);
+      compactState.balanceTimeline = compactState.balanceTimeline.slice(-300);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(compactState));
+    } catch {
+      // Ignorar si aún excede cuota
+    }
   }
 };
 
@@ -916,12 +1025,14 @@ const renderConfig = (config) => {
   if (elements.heroConfigTipoJuego)  elements.heroConfigTipoJuego.textContent  = config.tipoJuego;
   if (elements.heroConfigMartingala) elements.heroConfigMartingala.textContent = config.usarMartingala ? 'Activada ✅' : 'Desactivada';
   if (elements.heroConfigModo) {
-    elements.heroConfigModo.textContent = config.usarMartingala && config.modoMartingala === 2
-      ? 'Escalonada'
-      : 'Conteo básico';
+    elements.heroConfigModo.textContent = config.usarMartingala
+      ? (config.modoMartingala === 2 ? 'Escalonada' : 'Conteo básico')
+      : 'Inactivo';
   }
   if (elements.heroConfigApuesta) {
-    elements.heroConfigApuesta.textContent = `$${Number(config.valorApuestaBase).toLocaleString('es-CO')}`;
+    elements.heroConfigApuesta.textContent = config.usarMartingala
+      ? formatCurrency(config.valorApuestaBase)
+      : 'Inactivo';
   }
 
   // Sincronizar valores en el form del modal
@@ -942,12 +1053,13 @@ const toggleMartingalaFields = (show) => {
 // ─────────────────────────────────────────────
 const renderStats = (stats) => {
   if (!stats) return;
-  const { colores, total, topNumeros, saldoMartingala: saldo, config } = stats;
+  const { colores, total, totalHistorial, topNumeros, saldoMartingala: saldo, config } = stats;
   elements.totalTiradas.textContent = total;
-  elements.saldoMartingala.textContent = saldo;
-  elements.valorApuesta.textContent = `$${config.valorApuestaBase}`;
+  elements.saldoMartingala.textContent = formatCurrency(saldo);
+  elements.valorApuesta.textContent = formatCurrency(config.valorApuestaBase);
 
-  const percent = (valor) => (total ? Math.round((valor / total) * 100) : 0);
+  const sampleTotal = totalHistorial || total || 0;
+  const percent = (valor) => (sampleTotal ? Math.round((valor / sampleTotal) * 100) : 0);
   elements.barRojo.style.width   = `${percent(colores.rojo)}%`;
   elements.barNegro.style.width  = `${percent(colores.negro)}%`;
   elements.barVerde.style.width  = `${percent(colores.verde)}%`;
@@ -980,7 +1092,8 @@ const renderHistory = (historial) => {
   latest.forEach((item) => {
     const li = document.createElement('li');
     li.className = 'history-item';
-    const time = new Date(item.timestamp).toLocaleTimeString('es-CO');
+    const date = item.timestamp ? new Date(item.timestamp) : new Date();
+    const time = Number.isNaN(date.getTime()) ? '—' : date.toLocaleTimeString('es-CO');
     li.innerHTML = `
       <div>
         <strong>#${item.numero}</strong>
@@ -1002,38 +1115,50 @@ const refreshUI = () => {
 };
 
 const resetSession = () => {
+  if (predictor.historialNumeros.length > 0) {
+    const confirmReset = window.confirm('¿Seguro que deseas reiniciar la sesión? Se borrará todo el historial y saldo acumulado.');
+    if (!confirmReset) return;
+  }
   setHeroLevel('Reiniciando sesión...');
   predictor.resetState();
   saveState();
-  renderStats(predictor.getEstadisticas());
-  renderHistory(predictor.historialNumeros);
+  selectedNumber = null;
+  document.querySelectorAll('#roulettePad button.selected')
+    .forEach((b) => b.classList.remove('selected'));
+  const display = document.getElementById('selectedDisplay');
+  if (display) display.textContent = 'Ningún número seleccionado';
+  refreshUI();
   logMessage('Sesión reiniciada en el cliente', 'success');
   setHeroLevel('Listo con estado limpio');
-  updateLastSync();
 };
 
 // ─────────────────────────────────────────────
 // MODAL
 // ─────────────────────────────────────────────
-const openModal = () => elements.configModal.setAttribute('aria-hidden', 'false');
+const openModal = () => {
+  renderConfig(predictor.config);
+  elements.configModal.setAttribute('aria-hidden', 'false');
+};
 const closeModal = () => elements.configModal.setAttribute('aria-hidden', 'true');
 
 const handleConfigSubmit = (event) => {
   event.preventDefault();
+  const rawBase = Number(elements.valorApuestaBase.value);
+  const valorApuestaBase = Number.isFinite(rawBase) && rawBase >= 100 ? Math.round(rawBase) : 1000;
+
   const payload = {
     tipoRuleta: elements.tipoRuleta.value,
     tipoJuego: elements.tipoJuego.value,
     usarMartingala: elements.usarMartingala.checked,
     modoMartingala: Number(elements.modoMartingala.value),
-    valorApuestaBase: Number(elements.valorApuestaBase.value) || 1000
+    valorApuestaBase
   };
 
   setHeroLevel('Guardando configuración...');
   try {
     const config = predictor.actualizarConfig(payload);
     saveState();
-    renderConfig(config);
-    renderStats(predictor.getEstadisticas());
+    refreshUI();
     logMessage('Configuración actualizada localmente', 'success');
     closeModal();
   } catch (error) {
@@ -1101,10 +1226,7 @@ const handlePadSubmit = () => {
   try {
     const payload = predictor.agregarNumero(selectedNumber);
     saveState();
-    renderStats(payload.estadisticas);
-    renderHistory(predictor.historialNumeros);
-    renderBalanceChart();
-    updateBalanceSummary();
+    refreshUI();
     logMessage(
       `Número ${selectedNumber} → ${payload.resultado?.mensaje}`,
       payload.resultado?.acierto ? 'success' : 'warn'
@@ -1145,9 +1267,16 @@ const init = () => {
   elements.configForm.addEventListener('submit', handleConfigSubmit);
   elements.usarMartingala.addEventListener('change', (e) => toggleMartingalaFields(e.target.checked));
 
-  // Cerrar modal con Escape
+  // Atajos de teclado
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeModal();
+    if (e.key === 'Enter' && selectedNumber !== null) {
+      const activeTag = document.activeElement?.tagName?.toLowerCase();
+      if (activeTag !== 'input' && activeTag !== 'select' && activeTag !== 'textarea') {
+        e.preventDefault();
+        handlePadSubmit();
+      }
+    }
   });
 
   // Botón submit del pad
@@ -1166,15 +1295,27 @@ const init = () => {
 
   // Gráfico
   window.addEventListener('resize', renderBalanceChart);
+  if (window.ResizeObserver && elements.balanceCanvas?.parentElement) {
+    const ro = new ResizeObserver(() => {
+      window.requestAnimationFrame(renderBalanceChart);
+    });
+    ro.observe(elements.balanceCanvas.parentElement);
+  }
+
   if (elements.zoomRange) {
     elements.zoomRange.addEventListener('input', handleZoomChange);
     elements.zoomRange.value = chartState.windowSize.toString();
   }
   if (elements.balanceCanvas) {
+    const handleTouch = (e) => {
+      if (e.touches && e.touches.length > 0) {
+        handleChartHover(e.touches[0]);
+      }
+    };
     elements.balanceCanvas.addEventListener('mousemove', handleChartHover);
     elements.balanceCanvas.addEventListener('mouseleave', handleChartLeave);
-    elements.balanceCanvas.addEventListener('touchmove', (e) => handleChartHover(e.touches?.[0] || e));
-    elements.balanceCanvas.addEventListener('touchstart', (e) => handleChartHover(e.touches?.[0] || e));
+    elements.balanceCanvas.addEventListener('touchmove', handleTouch, { passive: true });
+    elements.balanceCanvas.addEventListener('touchstart', handleTouch, { passive: true });
     elements.balanceCanvas.addEventListener('touchend', handleChartLeave);
   }
 
