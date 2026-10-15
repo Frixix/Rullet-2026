@@ -19,12 +19,11 @@
   <body>
     <div class="page">
       <header class="hero">
-        <p class="hero__eyebrow">RuletaPredictor • lógica en tiempo real</p>
-        <h1>Predictor de Ruleta 2026</h1>
+        <p class="hero__eyebrow">Antigravity Core • Co-Piloto Probabilístico</p>
+        <h1>Antigravity Ruleta 2026</h1>
         <p class="hero__lead">
-          Analiza patrones C‑D‑E, administra martingalas y mantiene toda la
-          información de cada tirada sin salida a frameworks: solo HTML, CSS y
-          JavaScript.
+          Motor analítico riguroso basado en probabilidad condicional, filtro de freno (regla de no-apuesta),
+          gestión de varianza y control de riesgo para Ruleta Europea (0 al 36).
         </p>
 
         <!-- ── CONFIG ACTIVA INLINE EN EL HERO ── -->
@@ -32,19 +31,19 @@
           <div class="hero__config-pills">
             <span class="config-pill">
               <span class="config-pill__label">Ruleta</span>
-              <strong class="config-pill__value" id="heroConfigTipoRuleta">Física</strong>
+              <strong class="config-pill__value" id="heroConfigTipoRuleta">Europea (0-36)</strong>
             </span>
             <span class="config-pill">
-              <span class="config-pill__label">Juego</span>
-              <strong class="config-pill__value" id="heroConfigTipoJuego">Contra humanos</strong>
+              <span class="config-pill__label">Filtro Freno</span>
+              <strong class="config-pill__value" id="heroConfigFiltro">Racha ≥ 6 | Z ≥ 2.0σ</strong>
             </span>
             <span class="config-pill">
-              <span class="config-pill__label">Martingala</span>
+              <span class="config-pill__label">Gestión Capital</span>
               <strong class="config-pill__value" id="heroConfigMartingala">Desactivada</strong>
             </span>
             <span class="config-pill">
               <span class="config-pill__label">Modo</span>
-              <strong class="config-pill__value" id="heroConfigModo">Conteo básico</strong>
+              <strong class="config-pill__value" id="heroConfigModo">Filtro Condicional</strong>
             </span>
             <span class="config-pill config-pill--accent">
               <span class="config-pill__label">Apuesta base</span>
@@ -55,7 +54,7 @@
 
         <div class="hero__actions">
           <button id="openConfigBtn" type="button" class="btn primary">
-            Configurar sistema
+            Configurar parámetros
           </button>
           <button id="resetBtn" type="button" class="btn ghost">
             Reiniciar sesión
@@ -63,11 +62,58 @@
         </div>
         <div class="hero__status">
           <span id="lastSync">Esperando sincronización...</span>
-          <span id="heroLevel">Lógica lista 🔄</span>
+          <span id="heroLevel">Motor Antigravity Activo ⚡</span>
         </div>
       </header>
 
       <main>
+        <!-- PANEL CO-PILOTO ESTRATÉGICO ANTIGRAVITY -->
+        <section class="panel panel--copilot" id="copilotPanel">
+          <header class="panel__header">
+            <div>
+              <p class="eyebrow">Motor Antigravity • Control de Riesgo</p>
+              <h2>Co-Piloto Estratégico & Filtro de Freno</h2>
+            </div>
+            <div id="copilotSignal" class="copilot-signal signal-esperar">
+              <span class="signal-dot"></span>
+              <span id="signalText" class="signal-text">[ESPERAR]</span>
+            </div>
+          </header>
+
+          <div class="copilot-grid">
+            <div class="copilot-card">
+              <span class="copilot-card__label">Racha Activa</span>
+              <strong id="copilotStreak" class="copilot-card__value">0 — Neutro</strong>
+              <span id="copilotStreakProb" class="copilot-card__sub">P(teórica): 100%</span>
+            </div>
+            <div class="copilot-card">
+              <span class="copilot-card__label">Desviación (Z-Score)</span>
+              <strong id="copilotZScore" class="copilot-card__value">0.00σ</strong>
+              <span id="copilotVarianceStatus" class="copilot-card__sub">Rango estocástico normal</span>
+            </div>
+            <div class="copilot-card">
+              <span class="copilot-card__label">Nivel de Riesgo</span>
+              <strong id="copilotRisk" class="copilot-card__value risk-low">BAJO</strong>
+              <span id="copilotFilterStatus" class="copilot-card__sub">Filtro de freno ACTIVO</span>
+            </div>
+            <div class="copilot-card">
+              <span class="copilot-card__label">Gestión Factor 0</span>
+              <strong id="copilotZeroGap" class="copilot-card__value">0 tiradas</strong>
+              <span id="copilotZeroRatio" class="copilot-card__sub">Obs: 0% | Esp: 2.70%</span>
+            </div>
+          </div>
+
+          <div class="copilot-banner">
+            <div class="copilot-banner__header">
+              <span class="copilot-badge">Diagnóstico Algorítmico</span>
+              <span id="copilotTarget" class="copilot-target">Sin objetivo activo</span>
+            </div>
+            <p id="copilotDiagnosis" class="copilot-diagnosis">
+              Esperando tiradas para calibrar la varianza local frente a la tendencia de equilibrio macro.
+            </p>
+          </div>
+        </section>
+
         <!-- GRÁFICO -->
         <section class="panel panel--chart">
           <header class="panel__header">
@@ -255,11 +301,11 @@
           </form>
 
           <div class="simulation__notes">
-            <h3>Sugerencias rápidas</h3>
+            <h3>Principios Cuantitativos del Co-Piloto</h3>
             <ul id="suggestionsList">
-              <li>Carga secuencias largas para afinar el conteo C‑D‑E antes de activar martingala.</li>
-              <li>Observa qué pasa cada vez que aparece un cero: el patrón se reinicia.</li>
-              <li>Si ves series de color largas, toma nota si conviene cambiar a martingala escalonada.</li>
+              <li>El Filtro de Freno descarta el 85-90% de las tiradas para proteger contra el margen de la casa.</li>
+              <li>Las entradas se calculan solo cuando la desviación estándar supera el umbral estadístico (Z ≥ 2.0σ).</li>
+              <li>El Cero (0) actúa como disyuntor de simetría: cada cero absorbe apuestas de suertes simples.</li>
             </ul>
           </div>
         </section>
@@ -273,8 +319,8 @@
       <div class="modal__content">
         <header class="modal__header">
           <div>
-            <p class="eyebrow">Ajustes avanzados</p>
-            <h3>Configuración del predictor</h3>
+            <p class="eyebrow">Parámetros Algorítmicos</p>
+            <h3>Configuración del Motor Antigravity</h3>
           </div>
           <button id="closeConfigModal" type="button" class="btn text">
             Cerrar
@@ -284,20 +330,30 @@
           <label>
             Tipo de ruleta
             <select id="tipoRuleta" name="tipoRuleta">
-              <option value="Física">Física</option>
-              <option value="Virtual">Virtual</option>
+              <option value="Europea">Europea (0 al 36 - 1 Cero / Margen 2.70%)</option>
+              <option value="Americana">Americana (0 y 00 - 2 Ceros / Margen 5.26%)</option>
             </select>
           </label>
           <label>
-            Tipo de juego
-            <select id="tipoJuego" name="tipoJuego">
-              <option value="Contra humanos">Contra humanos</option>
-              <option value="Contra la máquina">Contra la máquina</option>
+            Umbral mínimo de racha (Filtro de Freno)
+            <select id="umbralRacha" name="umbralRacha">
+              <option value="5">Racha ≥ 5 tiradas (Sensibilidad alta)</option>
+              <option value="6" selected>Racha ≥ 6 tiradas (Estándar recomendado)</option>
+              <option value="7">Racha ≥ 7 tiradas (Alta selectividad)</option>
+              <option value="8">Racha ≥ 8 tiradas (Filtro extremo)</option>
+            </select>
+          </label>
+          <label>
+            Umbral crítico Z-Score (|Z| mínimo para señal)
+            <select id="umbralZScore" name="umbralZScore">
+              <option value="1.5">Z ≥ 1.5σ (Desviación moderada)</option>
+              <option value="2.0" selected>Z ≥ 2.0σ (Intervalo de confianza 95.4%)</option>
+              <option value="2.5">Z ≥ 2.5σ (Intervalo de confianza 98.8%)</option>
             </select>
           </label>
           <label class="checkbox-field">
             <input type="checkbox" id="usarMartingala" name="usarMartingala" />
-            Usar Martingala
+            Habilitar ejecución de apuestas (Solo en señal favorable)
           </label>
           <div
             class="martingala-details"
@@ -305,14 +361,14 @@
             style="display: none"
           >
             <label>
-              Modo Martingala
+              Gestión de Capital en Señal
               <select id="modoMartingala" name="modoMartingala">
-                <option value="1">Conteo básico (+1/-1)</option>
-                <option value="2">Escalonada (niveles)</option>
+                <option value="1">Apuesta Plana Condicional (Sin progresión)</option>
+                <option value="2">Escalonada de Cobertura (Hasta 4 niveles)</option>
               </select>
             </label>
             <label>
-              Apuesta base
+              Unidad / Apuesta base
               <input
                 type="number"
                 id="valorApuestaBase"
@@ -323,7 +379,7 @@
             </label>
           </div>
           <div class="config-form__actions">
-            <button type="submit" class="btn primary">Guardar</button>
+            <button type="submit" class="btn primary">Guardar Parámetros</button>
             <button type="button" id="cancelConfig" class="btn ghost">
               Cancelar
             </button>

@@ -12,24 +12,8 @@ const RULETA_COLORES = {
   31: 'negro', 32: 'rojo', 33: 'negro', 34: 'rojo', 35: 'negro', 36: 'rojo'
 };
 
-const PATRON_COLORES = {
-  0: ['verde', 'verde', 'verde'],
-  1: ['rojo', 'rojo', 'negro'], 2: ['negro', 'negro', 'negro'], 3: ['rojo', 'negro', 'rojo'],
-  4: ['negro', 'negro', 'negro'], 5: ['rojo', 'negro', 'rojo'], 6: ['negro', 'negro', 'negro'],
-  7: ['rojo', 'negro', 'rojo'], 8: ['negro', 'negro', 'rojo'], 9: ['rojo', 'negro', 'rojo'],
-  10: ['negro', 'negro', 'rojo'], 11: ['negro', 'negro', 'rojo'], 12: ['rojo', 'rojo', 'negro'],
-  13: ['negro', 'rojo', 'negro'], 14: ['rojo', 'rojo', 'negro'], 15: ['negro', 'rojo', 'rojo'],
-  16: ['rojo', 'negro', 'rojo'], 17: ['negro', 'rojo', 'negro'], 18: ['rojo', 'negro', 'rojo'],
-  19: ['rojo', 'negro', 'rojo'], 20: ['negro', 'rojo', 'rojo'], 21: ['rojo', 'rojo', 'rojo'],
-  22: ['negro', 'rojo', 'rojo'], 23: ['rojo', 'negro', 'rojo'], 24: ['negro', 'rojo', 'negro'],
-  25: ['rojo', 'negro', 'rojo'], 26: ['negro', 'negro', 'rojo'], 27: ['rojo', 'rojo', 'negro'],
-  28: ['negro', 'negro', 'rojo'], 29: ['negro', 'negro', 'rojo'], 30: ['rojo', 'negro', 'rojo'],
-  31: ['negro', 'rojo', 'rojo'], 32: ['rojo', 'negro', 'rojo'], 33: ['negro', 'negro', 'rojo'],
-  34: ['rojo', 'rojo', 'rojo'], 35: ['negro', 'negro', 'negro'], 36: ['rojo', 'rojo', 'rojo']
-};
-
 // ─────────────────────────────────────────────
-// CLASE PRINCIPAL
+// MOTOR CUANTITATIVO ANTIGRAVITY (PROBABILÍSTICO)
 // ─────────────────────────────────────────────
 class RuletaPredictor {
   constructor() {
@@ -38,16 +22,17 @@ class RuletaPredictor {
 
   calcularNivelesMartingala(base) {
     const b = Number(base) || 1000;
-    return [b, b * 2, b * 4, b * 8, b * 16, b * 32];
+    return [b, b * 2, b * 4, b * 8]; // Límite estricto de 4 escalones para control de varianza
   }
 
   getDefaultConfig() {
     const base = 1000;
     return {
-      tipoRuleta: 'Física',
-      tipoJuego: 'Contra humanos',
+      tipoRuleta: 'Europea',
+      umbralRacha: 6,
+      umbralZScore: 2.0,
       usarMartingala: false,
-      modoMartingala: 1,
+      modoMartingala: 1, // 1: Apuesta plana condicional, 2: Escalonada
       valorApuestaBase: base,
       nivelesMartingala: this.calcularNivelesMartingala(base)
     };
@@ -57,14 +42,13 @@ class RuletaPredictor {
     const config = this.getDefaultConfig();
     this.historialNumeros = [];
     this.totalTiradasContador = 0;
-    this.patronActivo = false;
-    this.patronActual = [];
-    this.etapaActual = 0;
     this.config = { ...config };
     this.saldoMartingala = 0;
     this.nivelMartingala = 0;
     this.apuestaActual = config.valorApuestaBase;
+    this.posicionAbierta = null;
     this.ultimoResultado = null;
+    this.ultimoAnalisis = null;
     this.balanceTimeline = [];
   }
 
@@ -77,9 +61,6 @@ class RuletaPredictor {
     this.totalTiradasContador = typeof state.totalTiradasContador === 'number'
       ? state.totalTiradasContador
       : this.historialNumeros.length;
-    this.patronActivo = state.patronActivo ?? false;
-    this.patronActual = Array.isArray(state.patronActual) ? state.patronActual : [];
-    this.etapaActual = state.etapaActual ?? 0;
     this.config = { ...this.getDefaultConfig(), ...state.config };
     if (!Array.isArray(this.config.nivelesMartingala) || !this.config.nivelesMartingala.length) {
       this.config.nivelesMartingala = this.calcularNivelesMartingala(this.config.valorApuestaBase);
@@ -88,10 +69,18 @@ class RuletaPredictor {
     this.nivelMartingala = state.nivelMartingala ?? 0;
     this.apuestaActual =
       typeof state.apuestaActual === 'number' ? state.apuestaActual : this.config.valorApuestaBase;
+    this.posicionAbierta = state.posicionAbierta || null;
     this.ultimoResultado = state.ultimoResultado || null;
+    this.ultimoAnalisis = state.ultimoAnalisis || null;
     this.balanceTimeline = Array.isArray(state.balanceTimeline) ? state.balanceTimeline : [];
     if (this.balanceTimeline.length > MAX_HISTORIAL_REGISTROS) {
       this.balanceTimeline = this.balanceTimeline.slice(-MAX_HISTORIAL_REGISTROS);
+    }
+
+    // Re-evaluar motor si hay historial pero falta el análisis
+    if (this.historialNumeros.length > 0 && !this.ultimoAnalisis) {
+      const ultimoNum = this.historialNumeros[this.historialNumeros.length - 1].numero;
+      this.ultimoAnalisis = this.evaluarMotorAntigravity(ultimoNum);
     }
   }
 
@@ -99,137 +88,321 @@ class RuletaPredictor {
     return {
       historialNumeros: this.historialNumeros,
       totalTiradasContador: this.totalTiradasContador,
-      patronActivo: this.patronActivo,
-      patronActual: this.patronActual,
-      etapaActual: this.etapaActual,
       config: this.config,
       saldoMartingala: this.saldoMartingala,
       nivelMartingala: this.nivelMartingala,
       apuestaActual: this.apuestaActual,
+      posicionAbierta: this.posicionAbierta,
       ultimoResultado: this.ultimoResultado,
+      ultimoAnalisis: this.ultimoAnalisis,
       balanceTimeline: this.balanceTimeline
     };
   }
 
   getColor(numero) {
-    return RULETA_COLORES[numero] || 'desconocido';
+    return RULETA_COLORES[numero] || 'verde';
   }
 
-  analizarPatron(numero) {
-    if (numero === 0) {
-      this.patronActivo = false;
-      this.patronActual = [];
-      this.etapaActual = 0;
-      return { mensaje: 'Cayó 0. El patrón se reinicia automáticamente.', acierto: null };
+  getPropiedades(numero) {
+    const color = this.getColor(numero);
+    let paridad = 'cero';
+    let rango = 'cero';
+    let docena = 'cero';
+    let columna = 'cero';
+
+    if (numero > 0) {
+      paridad = numero % 2 === 0 ? 'par' : 'impar';
+      rango = numero <= 18 ? 'falta' : 'pasa';
+      docena = Math.ceil(numero / 12);
+      columna = ((numero - 1) % 3) + 1;
+    }
+    return { numero, color, paridad, rango, docena, columna };
+  }
+
+  calcularRachas() {
+    if (!this.historialNumeros.length) return null;
+    const n = this.historialNumeros.length;
+    const ultimo = this.historialNumeros[n - 1];
+
+    // Racha de color
+    let countColor = 0;
+    for (let i = n - 1; i >= 0; i--) {
+      if (this.historialNumeros[i].color === ultimo.color) countColor++;
+      else break;
     }
 
-    const colorReal = this.getColor(numero);
-
-    if (!PATRON_COLORES[numero]) {
-      this.patronActivo = false;
-      this.patronActual = [];
-      this.etapaActual = 0;
-      return { mensaje: `Número ${numero} sin patrón definido. Se reinicia.`, acierto: null };
-    }
-
-    if (!this.patronActivo) {
-      this.patronActual = [...PATRON_COLORES[numero]];
-      this.patronActivo = true;
-      this.etapaActual = 0;
-      const esperado = this.patronActual[this.etapaActual];
-
-      if (colorReal === esperado) {
-        this.etapaActual++;
-        return {
-          mensaje: `Patrón activado con número ${numero}. Acierto en etapa C. Esperando etapa D...`,
-          acierto: true,
-          etapa: 'C',
-          siguienteEsperado: this.patronActual[this.etapaActual]
-        };
+    // Racha de paridad
+    let countParidad = 0;
+    if (ultimo.paridad !== 'cero') {
+      for (let i = n - 1; i >= 0; i--) {
+        if (this.historialNumeros[i].paridad === ultimo.paridad) countParidad++;
+        else break;
       }
+    }
 
-      this.patronActivo = false;
-      this.patronActual = [];
-      this.etapaActual = 0;
+    // Racha de rango (falta / pasa)
+    let countRango = 0;
+    if (ultimo.rango !== 'cero') {
+      for (let i = n - 1; i >= 0; i--) {
+        if (this.historialNumeros[i].rango === ultimo.rango) countRango++;
+        else break;
+      }
+    }
+
+    const pSimple = 18 / 37;
+    const probColor = ultimo.color === 'verde'
+      ? Math.pow(1 / 37, countColor)
+      : Math.pow(pSimple, countColor);
+    const probParidad = Math.pow(pSimple, countParidad);
+    const probRango = Math.pow(pSimple, countRango);
+
+    const formatProb = (p) => {
+      const pct = p * 100;
+      return pct < 0.01 ? `${pct.toExponential(2)}%` : `${pct.toFixed(2)}%`;
+    };
+
+    return {
+      color: {
+        tipo: ultimo.color,
+        count: countColor,
+        probabilidad: formatProb(probColor),
+        probRaw: probColor,
+        texto: `${countColor} ${ultimo.color.toUpperCase()}`
+      },
+      paridad: {
+        tipo: ultimo.paridad,
+        count: countParidad,
+        probabilidad: formatProb(probParidad),
+        probRaw: probParidad,
+        texto: `${countParidad} ${ultimo.paridad.toUpperCase()}`
+      },
+      rango: {
+        tipo: ultimo.rango,
+        count: countRango,
+        probabilidad: formatProb(probRango),
+        probRaw: probRango,
+        texto: `${countRango} ${ultimo.rango.toUpperCase()}`
+      }
+    };
+  }
+
+  calcularZScores() {
+    const total = this.historialNumeros.length;
+    if (!total) return { local: 0, macro: 0 };
+
+    const p = 18 / 37;
+    const windowSize = Math.min(20, total);
+    const windowItems = this.historialNumeros.slice(-windowSize);
+
+    let rojoLocal = 0, negroLocal = 0, verdeLocal = 0;
+    windowItems.forEach((item) => {
+      if (item.color === 'rojo') rojoLocal++;
+      else if (item.color === 'negro') negroLocal++;
+      else if (item.color === 'verde') verdeLocal++;
+    });
+
+    const expLocal = windowSize * p;
+    const sigmaLocal = Math.sqrt(windowSize * p * (1 - p));
+
+    const ultimo = this.historialNumeros[total - 1];
+    let obsLocal = 0;
+    if (ultimo.color === 'rojo') obsLocal = rojoLocal;
+    else if (ultimo.color === 'negro') obsLocal = negroLocal;
+
+    const zLocal = sigmaLocal > 0 ? (obsLocal - expLocal) / sigmaLocal : 0;
+
+    let rojoMacro = 0, negroMacro = 0;
+    this.historialNumeros.forEach((item) => {
+      if (item.color === 'rojo') rojoMacro++;
+      else if (item.color === 'negro') negroMacro++;
+    });
+
+    const expMacro = total * p;
+    const sigmaMacro = Math.sqrt(total * p * (1 - p));
+    const obsMacro = ultimo.color === 'rojo' ? rojoMacro : (ultimo.color === 'negro' ? negroMacro : 0);
+    const zMacro = sigmaMacro > 0 ? (obsMacro - expMacro) / sigmaMacro : 0;
+
+    return {
+      local: Number(zLocal.toFixed(2)),
+      macro: Number(zMacro.toFixed(2)),
+      rojoLocal,
+      negroLocal,
+      verdeLocal,
+      windowSize
+    };
+  }
+
+  calcularEstadisticasCero() {
+    const total = this.historialNumeros.length;
+    if (!total) return { count: 0, gap: 0, ratio: '0.0', expectedRatio: '2.70' };
+
+    let count = 0;
+    let gap = 0;
+    let zeroFound = false;
+
+    for (let i = total - 1; i >= 0; i--) {
+      if (this.historialNumeros[i].numero === 0) {
+        count++;
+        zeroFound = true;
+      } else if (!zeroFound) {
+        gap++;
+      }
+    }
+    if (!zeroFound) gap = total;
+
+    const ratio = ((count / total) * 100).toFixed(1);
+    return { count, gap, ratio, expectedRatio: '2.70' };
+  }
+
+  evaluarMotorAntigravity(nuevoNumero) {
+    const rachas = this.calcularRachas();
+    const zScores = this.calcularZScores();
+    const ceroStats = this.calcularEstadisticasCero();
+
+    if (!rachas) {
       return {
-        mensaje: `Patrón activado con número ${numero}. Fallo en etapa C. Se reinicia.`,
-        acierto: false,
-        etapa: 'C'
+        signal: 'ESPERAR',
+        target: null,
+        rachaActiva: null,
+        zScore: zScores,
+        riesgo: 'BAJO',
+        filtroFrenoActivo: true,
+        ceroStats,
+        diagnostico: 'Inicializando motor cuantitativo. Registra tiradas para calibrar la varianza.',
+        mensajeLog: 'Sistema en espera de datos.'
       };
     }
 
-    if (this.etapaActual >= 3) {
-      this.patronActivo = false;
-      this.patronActual = [];
-      this.etapaActual = 0;
-      return { mensaje: 'El patrón ya había finalizado. Se reinicia.', acierto: null };
+    const umbralRacha = Number(this.config.umbralRacha) || 6;
+    const umbralZ = Number(this.config.umbralZScore) || 2.0;
+
+    const rColor = rachas.color;
+    const rParidad = rachas.paridad;
+    const rRango = rachas.rango;
+
+    let rachaDominante = rColor;
+    if (rParidad && rParidad.count > rachaDominante.count) rachaDominante = rParidad;
+    if (rRango && rRango.count > rachaDominante.count) rachaDominante = rRango;
+
+    let signal = 'ESPERAR';
+    let target = null;
+    let targetType = null;
+    let riesgo = 'BAJO';
+    let diagnostico = '';
+    let mensajeLog = '';
+
+    const dintelRachaColor = Math.max(7, umbralRacha);
+    const cumpleDintelColor =
+      (rColor.count >= umbralRacha && Math.abs(zScores.local) >= umbralZ) ||
+      rColor.count >= dintelRachaColor;
+
+    const dintelRachaParidad = Math.max(7, umbralRacha);
+    const cumpleDintelParidad =
+      rParidad &&
+      rParidad.tipo !== 'cero' &&
+      ((rParidad.count >= umbralRacha && Math.abs(zScores.local) >= umbralZ) ||
+        rParidad.count >= dintelRachaParidad);
+
+    // Gestión del Cero (0)
+    if (nuevoNumero === 0) {
+      signal = 'ESPERAR';
+      target = null;
+      riesgo = 'MEDIO';
+      diagnostico = `Aparición del Cero (0). Se aplicó la absorción del margen de la casa (2.70%). Las simetrías de suertes simples quedan suspendidas.`;
+      mensajeLog = `Tirada #${this.totalTiradasContador} → #0 Verde | Disrupción por Cero. Filtro: [ESPERAR].`;
     }
-
-    const esperado = this.patronActual[this.etapaActual];
-    const letras = ['C', 'D', 'E'];
-
-    if (colorReal === esperado) {
-      this.etapaActual++;
-      if (this.etapaActual === 3) {
-        this.patronActivo = false;
-        this.patronActual = [];
-        this.etapaActual = 0;
-        return {
-          mensaje: '✅ Acierto en etapa E. ¡Patrón completo exitoso! Se reinicia.',
-          acierto: true,
-          etapa: 'E',
-          completo: true
-        };
+    // Filtro de Freno: Condición Favorable para Color
+    else if (cumpleDintelColor) {
+      signal = 'CONDICION_FAVORABLE';
+      target = rColor.tipo === 'rojo' ? 'NEGRO' : 'ROJO';
+      targetType = 'color';
+      riesgo = rColor.count >= 8 ? 'ALTO' : 'MEDIO';
+      diagnostico = `ANOMALÍA DETECTADA: Racha de ${rColor.count} ${rColor.tipo.toUpperCase()}S con Z-Score de ${zScores.local >= 0 ? '+' : ''}${zScores.local}σ (P = ${rColor.probabilidad}). Dintel superado: entrada válida buscando reversión hacia ${target}.`;
+      mensajeLog = `Tirada #${this.totalTiradasContador} → #${nuevoNumero} ${rColor.tipo.toUpperCase()} | Racha crítica ${rColor.count} (${rColor.probabilidad}) | Z: ${zScores.local}σ | Señal: [CONDICIÓN FAVORABLE] → ${target}.`;
+    }
+    // Filtro de Freno: Condición Favorable para Paridad
+    else if (cumpleDintelParidad) {
+      signal = 'CONDICION_FAVORABLE';
+      target = rParidad.tipo === 'par' ? 'IMPAR' : 'PAR';
+      targetType = 'paridad';
+      riesgo = rParidad.count >= 8 ? 'ALTO' : 'MEDIO';
+      diagnostico = `ANOMALÍA DETECTADA: Racha de ${rParidad.count} ${rParidad.tipo.toUpperCase()}ES (P = ${rParidad.probabilidad}). Dintel superado: entrada válida buscando reversión hacia ${target}.`;
+      mensajeLog = `Tirada #${this.totalTiradasContador} → #${nuevoNumero} | Racha paridad ${rParidad.count} (${rParidad.probabilidad}) | Señal: [CONDICIÓN FAVORABLE] → ${target}.`;
+    }
+    // Filtro de Freno: Estado por defecto ESPERAR
+    else {
+      signal = 'ESPERAR';
+      target = null;
+      if (rColor.count >= 4) {
+        riesgo = 'MEDIO';
+        diagnostico = `Racha de ${rColor.count} ${rColor.tipo.toUpperCase()}S en formación (Z = ${zScores.local >= 0 ? '+' : ''}${zScores.local}σ). FILTRO DE FRENO ACTIVO: No operar prematuramente (evitar falacia del apostador).`;
+      } else if (Math.abs(zScores.local) < 1.0) {
+        riesgo = 'BAJO';
+        diagnostico = `Distribución local en equilibrio estocástico (|Z| < 1.0σ). Sin asimetría aprovechable. Paciencia y preservación de capital.`;
+      } else {
+        riesgo = 'BAJO';
+        diagnostico = `Tensión de varianza moderada (Z = ${zScores.local >= 0 ? '+' : ''}${zScores.local}σ). No alcanza el umbral de entrada (Racha < ${umbralRacha} o |Z| < ${umbralZ}σ).`;
       }
-      return {
-        mensaje: `✅ Acierto en etapa ${letras[this.etapaActual - 1]}. Próximo color esperado: ${this.patronActual[this.etapaActual]} (etapa ${letras[this.etapaActual]})`,
-        acierto: true,
-        etapa: letras[this.etapaActual - 1],
-        siguienteEsperado: this.patronActual[this.etapaActual]
-      };
+      mensajeLog = `Tirada #${this.totalTiradasContador} → #${nuevoNumero} ${rColor.tipo.toUpperCase()} | Racha: ${rColor.count} | Z: ${zScores.local}σ | Señal: [ESPERAR].`;
     }
 
-    const falloLetra = letras[this.etapaActual];
-    const mensaje = `❌ Fallo en etapa ${falloLetra}. Color esperado: ${esperado}. Salió: ${colorReal}. Se reinicia.`;
-    this.patronActivo = false;
-    this.patronActual = [];
-    this.etapaActual = 0;
-    return { mensaje, acierto: false, etapa: falloLetra, esperado, salio: colorReal };
+    return {
+      signal,
+      target,
+      targetType,
+      rachaActiva: rachaDominante,
+      zScore: zScores,
+      riesgo,
+      filtroFrenoActivo: signal === 'ESPERAR',
+      ceroStats,
+      diagnostico,
+      mensajeLog
+    };
   }
 
-  procesarMartingala(resultado) {
+  procesarApuestaCondicional(propsNumero) {
     if (!this.config.usarMartingala) return null;
 
-    const modo = this.config.modoMartingala;
-    const esAciertoE = resultado?.acierto === true && resultado?.etapa === 'E';
-    const esFalloE = resultado?.acierto === false && resultado?.etapa === 'E';
     let cambio = null;
+    const pos = this.posicionAbierta;
 
-    if (modo === 1) {
-      const valor = this.config.valorApuestaBase || 1000;
-      if (esAciertoE) {
-        this.saldoMartingala += valor;
-        cambio = { tipo: 'acierto', saldo: this.saldoMartingala, monto: valor };
-      } else if (esFalloE) {
-        this.saldoMartingala -= valor;
-        cambio = { tipo: 'fallo', saldo: this.saldoMartingala, monto: valor };
+    if (pos) {
+      let acierto = false;
+      if (pos.targetType === 'color') {
+        const esperado = pos.target.toLowerCase();
+        acierto = propsNumero.color === esperado;
+      } else if (pos.targetType === 'paridad') {
+        const esperado = pos.target.toLowerCase();
+        acierto = propsNumero.paridad === esperado;
       }
-    } else {
-      const montoApostado = this.apuestaActual;
-      if (esAciertoE) {
-        this.saldoMartingala += montoApostado;
+
+      const monto = pos.monto || this.apuestaActual;
+
+      if (acierto) {
+        this.saldoMartingala += monto;
         this.nivelMartingala = 0;
-        this.apuestaActual = this.config.nivelesMartingala[this.nivelMartingala] || this.config.valorApuestaBase;
-        cambio = { tipo: 'acierto', saldo: this.saldoMartingala, proximaApuesta: this.apuestaActual, monto: montoApostado };
-      } else if (esFalloE) {
-        this.saldoMartingala -= montoApostado;
-        this.nivelMartingala++;
-        if (this.nivelMartingala >= this.config.nivelesMartingala.length) {
-          this.nivelMartingala = this.config.nivelesMartingala.length - 1;
+        this.apuestaActual = this.config.nivelesMartingala[0] || this.config.valorApuestaBase;
+        cambio = { tipo: 'acierto', saldo: this.saldoMartingala, monto, acierto: true };
+      } else {
+        this.saldoMartingala -= monto;
+        if (this.config.modoMartingala === 2) {
+          this.nivelMartingala++;
+          if (this.nivelMartingala >= this.config.nivelesMartingala.length) {
+            this.nivelMartingala = 0;
+          }
+          this.apuestaActual = this.config.nivelesMartingala[this.nivelMartingala] || this.config.valorApuestaBase;
+        } else {
+          this.apuestaActual = this.config.valorApuestaBase;
         }
-        this.apuestaActual = this.config.nivelesMartingala[this.nivelMartingala] || this.config.valorApuestaBase;
-        cambio = { tipo: 'fallo', saldo: this.saldoMartingala, proximaApuesta: this.apuestaActual, nivel: this.nivelMartingala, monto: montoApostado };
+        cambio = {
+          tipo: 'fallo',
+          saldo: this.saldoMartingala,
+          monto,
+          acierto: false,
+          nivel: this.nivelMartingala
+        };
       }
+      this.posicionAbierta = null;
     }
 
     return cambio;
@@ -239,15 +412,17 @@ class RuletaPredictor {
     const open = previousBalance;
     const close = this.saldoMartingala;
     const high = Math.max(open, close);
-    const low  = Math.min(open, close);
-    const tipo = martingalaCambio?.tipo || null; // 'acierto', 'fallo', o null
+    const low = Math.min(open, close);
+    const tipo = martingalaCambio?.tipo || null;
     this.balanceTimeline.push({ open, high, low, close, tipo, tiradaNumero });
     if (this.balanceTimeline.length > MAX_HISTORIAL_REGISTROS) {
       this.balanceTimeline.shift();
     }
   }
 
-  getBalanceTimeline() { return this.balanceTimeline; }
+  getBalanceTimeline() {
+    return this.balanceTimeline;
+  }
 
   getBalanceExtremes() {
     if (!this.balanceTimeline.length) return { high: 0, low: 0 };
@@ -260,27 +435,66 @@ class RuletaPredictor {
   }
 
   agregarNumero(numero) {
-    const color = this.getColor(numero);
+    const props = this.getPropiedades(numero);
     const previousBalance = this.saldoMartingala;
-    const resultado = this.analizarPatron(numero);
-    const martingala = this.procesarMartingala(resultado);
 
+    // 1. Resolver posición condicional previa si existía
+    const martingala = this.procesarApuestaCondicional(props);
+
+    // 2. Registrar en historial
     this.totalTiradasContador++;
-    this.recordBalanceStep(previousBalance, martingala, this.totalTiradasContador);
-
     const registro = {
       numero,
-      color,
+      color: props.color,
+      paridad: props.paridad,
+      rango: props.rango,
+      docena: props.docena,
+      columna: props.columna,
       timestamp: new Date().toISOString(),
-      resultado,
       tiradaNumero: this.totalTiradasContador
     };
     this.historialNumeros.push(registro);
     if (this.historialNumeros.length > MAX_HISTORIAL_REGISTROS) {
       this.historialNumeros.shift();
     }
-    this.ultimoResultado = { numero, color, resultado, martingala, tiradaNumero: this.totalTiradasContador };
-    return { ...this.ultimoResultado, estadisticas: this.getEstadisticas() };
+
+    // 3. Evaluar estado analítico cuantitativo
+    const analisis = this.evaluarMotorAntigravity(numero);
+    this.ultimoAnalisis = analisis;
+
+    // 4. Si la señal es favorable y las apuestas están activas, preparar posición para la siguiente tirada
+    if (this.config.usarMartingala && analisis.signal === 'CONDICION_FAVORABLE') {
+      this.posicionAbierta = {
+        target: analisis.target,
+        targetType: analisis.targetType,
+        monto: this.apuestaActual
+      };
+    } else {
+      this.posicionAbierta = null;
+    }
+
+    // 5. Registrar en gráfico de balance
+    this.recordBalanceStep(previousBalance, martingala, this.totalTiradasContador);
+
+    this.ultimoResultado = {
+      numero,
+      color: props.color,
+      analisis,
+      martingala,
+      tiradaNumero: this.totalTiradasContador
+    };
+
+    return {
+      ...this.ultimoResultado,
+      estadisticas: this.getEstadisticas(),
+      logTexto: analisis.mensajeLog,
+      logTone:
+        analisis.signal === 'CONDICION_FAVORABLE'
+          ? 'success'
+          : props.color === 'verde'
+            ? 'warn'
+            : 'info'
+    };
   }
 
   getEstadisticas() {
@@ -299,33 +513,30 @@ class RuletaPredictor {
       .sort((a, b) => b.veces - a.veces)
       .slice(0, 15);
 
-    return { total, totalHistorial, colores, topNumeros, saldoMartingala: this.saldoMartingala, config: this.config };
+    return {
+      total,
+      totalHistorial,
+      colores,
+      topNumeros,
+      saldoMartingala: this.saldoMartingala,
+      config: this.config
+    };
   }
 
   actualizarConfig(nuevaConfig) {
-    const martingalaEstabaActiva = Boolean(this.config.usarMartingala);
     const baseAnterior = this.config.valorApuestaBase;
-
     this.config = { ...this.config, ...nuevaConfig };
 
-    // Si la apuesta base cambió o faltan niveles, recalcular escala proporcional
     if (this.config.valorApuestaBase !== baseAnterior || !this.config.nivelesMartingala?.length) {
       this.config.nivelesMartingala = this.calcularNivelesMartingala(this.config.valorApuestaBase);
     }
 
     if (this.config.usarMartingala) {
-      // Si se activa por primera vez en la sesión, inicializar apuesta
-      if (!martingalaEstabaActiva) {
-        this.apuestaActual = this.config.valorApuestaBase;
+      if (this.nivelMartingala >= this.config.nivelesMartingala.length) {
         this.nivelMartingala = 0;
-      } else {
-        // Si ya estaba activa y está en nivel 0, actualizar con la nueva base
-        if (this.nivelMartingala === 0) {
-          this.apuestaActual = this.config.valorApuestaBase;
-        } else {
-          this.apuestaActual = this.config.nivelesMartingala[this.nivelMartingala] || this.config.valorApuestaBase;
-        }
       }
+      this.apuestaActual =
+        this.config.nivelesMartingala[this.nivelMartingala] || this.config.valorApuestaBase;
     }
     return this.config;
   }
@@ -352,9 +563,23 @@ const elements = {
   saldoMartingala: document.getElementById('saldoMartingala'),
   valorApuesta: document.getElementById('valorApuesta'),
 
-  // Config pills en el hero (reemplaza al panel de config)
+  // Panel Co-Piloto Antigravity
+  copilotSignal: document.getElementById('copilotSignal'),
+  signalText: document.getElementById('signalText'),
+  copilotStreak: document.getElementById('copilotStreak'),
+  copilotStreakProb: document.getElementById('copilotStreakProb'),
+  copilotZScore: document.getElementById('copilotZScore'),
+  copilotVarianceStatus: document.getElementById('copilotVarianceStatus'),
+  copilotRisk: document.getElementById('copilotRisk'),
+  copilotFilterStatus: document.getElementById('copilotFilterStatus'),
+  copilotZeroGap: document.getElementById('copilotZeroGap'),
+  copilotZeroRatio: document.getElementById('copilotZeroRatio'),
+  copilotTarget: document.getElementById('copilotTarget'),
+  copilotDiagnosis: document.getElementById('copilotDiagnosis'),
+
+  // Config pills en el hero
   heroConfigTipoRuleta: document.getElementById('heroConfigTipoRuleta'),
-  heroConfigTipoJuego: document.getElementById('heroConfigTipoJuego'),
+  heroConfigFiltro: document.getElementById('heroConfigFiltro'),
   heroConfigMartingala: document.getElementById('heroConfigMartingala'),
   heroConfigModo: document.getElementById('heroConfigModo'),
   heroConfigApuesta: document.getElementById('heroConfigApuesta'),
@@ -373,7 +598,8 @@ const elements = {
   modoMartingala: document.getElementById('modoMartingala'),
   valorApuestaBase: document.getElementById('valorApuestaBase'),
   tipoRuleta: document.getElementById('tipoRuleta'),
-  tipoJuego: document.getElementById('tipoJuego'),
+  umbralRacha: document.getElementById('umbralRacha'),
+  umbralZScore: document.getElementById('umbralZScore'),
 
   // Canvas y controles de gráfico
   balanceCanvas: document.getElementById('balanceCanvas'),
@@ -1015,6 +1241,106 @@ const loadState = () => {
 };
 
 // ─────────────────────────────────────────────
+// RENDER CO-PILOTO ANTIGRAVITY
+// ─────────────────────────────────────────────
+const renderCopilot = (analisis) => {
+  if (!elements.copilotSignal) return;
+
+  if (!analisis) {
+    elements.copilotSignal.className = 'copilot-signal signal-esperar';
+    if (elements.signalText) elements.signalText.textContent = '[ESPERAR]';
+    if (elements.copilotStreak) elements.copilotStreak.textContent = '0 — Neutro';
+    if (elements.copilotStreakProb) elements.copilotStreakProb.textContent = 'P(teórica): 100%';
+    if (elements.copilotZScore) elements.copilotZScore.textContent = '0.00σ';
+    if (elements.copilotVarianceStatus) elements.copilotVarianceStatus.textContent = 'Rango estocástico normal';
+    if (elements.copilotRisk) {
+      elements.copilotRisk.textContent = 'BAJO';
+      elements.copilotRisk.className = 'copilot-card__value risk-low';
+    }
+    if (elements.copilotFilterStatus) elements.copilotFilterStatus.textContent = 'Filtro de freno ACTIVO';
+    if (elements.copilotZeroGap) elements.copilotZeroGap.textContent = '0 tiradas';
+    if (elements.copilotZeroRatio) elements.copilotZeroRatio.textContent = 'Obs: 0% | Esp: 2.70%';
+    if (elements.copilotTarget) elements.copilotTarget.textContent = 'Sin objetivo activo';
+    if (elements.copilotDiagnosis) {
+      elements.copilotDiagnosis.textContent =
+        'Esperando tiradas para calibrar la varianza local frente a la tendencia de equilibrio macro.';
+    }
+    return;
+  }
+
+  // Señal del Filtro de Freno
+  const esFavorable = analisis.signal === 'CONDICION_FAVORABLE';
+  elements.copilotSignal.className = `copilot-signal ${esFavorable ? 'signal-accion' : 'signal-esperar'}`;
+  if (elements.signalText) {
+    elements.signalText.textContent = esFavorable
+      ? '[CONDICIÓN FAVORABLE PARA ACCIÓN]'
+      : '[ESPERAR]';
+  }
+
+  // Racha
+  const r = analisis.rachaActiva;
+  if (elements.copilotStreak) {
+    elements.copilotStreak.textContent = r?.texto || '0 — Neutro';
+  }
+  if (elements.copilotStreakProb) {
+    elements.copilotStreakProb.textContent = r ? `P(teórica): ${r.probabilidad}` : 'P(teórica): 100%';
+  }
+
+  // Z-Score
+  const zVal = analisis.zScore?.local ?? 0;
+  if (elements.copilotZScore) {
+    elements.copilotZScore.textContent = `${zVal >= 0 ? '+' : ''}${zVal.toFixed(2)}σ`;
+  }
+  if (elements.copilotVarianceStatus) {
+    elements.copilotVarianceStatus.textContent =
+      Math.abs(zVal) >= 2.0
+        ? 'Anomalía estadística (|Z| ≥ 2.0σ)'
+        : Math.abs(zVal) >= 1.5
+          ? 'Tensión de varianza moderada'
+          : 'Rango estocástico normal';
+  }
+
+  // Riesgo
+  if (elements.copilotRisk) {
+    elements.copilotRisk.textContent = analisis.riesgo || 'BAJO';
+    const riskClass =
+      analisis.riesgo === 'CRÍTICO'
+        ? 'risk-critical'
+        : analisis.riesgo === 'ALTO'
+          ? 'risk-high'
+          : analisis.riesgo === 'MEDIO'
+            ? 'risk-med'
+            : 'risk-low';
+    elements.copilotRisk.className = `copilot-card__value ${riskClass}`;
+  }
+
+  if (elements.copilotFilterStatus) {
+    elements.copilotFilterStatus.textContent = esFavorable
+      ? 'Filtro SUPERADO (Entrada válida)'
+      : 'Filtro de freno ACTIVO';
+  }
+
+  // Cero (0)
+  const c = analisis.ceroStats;
+  if (c) {
+    if (elements.copilotZeroGap) elements.copilotZeroGap.textContent = `${c.gap} tiradas sin caer`;
+    if (elements.copilotZeroRatio) {
+      elements.copilotZeroRatio.textContent = `Obs: ${c.ratio}% | Esp: 2.70% (${c.count} veces)`;
+    }
+  }
+
+  // Objetivo y Diagnóstico
+  if (elements.copilotTarget) {
+    elements.copilotTarget.textContent = analisis.target
+      ? `Objetivo: Buscar reversión a ${analisis.target}`
+      : 'Sin objetivo (Preservación de capital)';
+  }
+  if (elements.copilotDiagnosis) {
+    elements.copilotDiagnosis.textContent = analisis.diagnostico || '';
+  }
+};
+
+// ─────────────────────────────────────────────
 // RENDER CONFIG → PILLS DEL HERO
 // ─────────────────────────────────────────────
 const renderConfig = (config) => {
@@ -1022,12 +1348,16 @@ const renderConfig = (config) => {
 
   // Pills del hero
   if (elements.heroConfigTipoRuleta) elements.heroConfigTipoRuleta.textContent = config.tipoRuleta;
-  if (elements.heroConfigTipoJuego)  elements.heroConfigTipoJuego.textContent  = config.tipoJuego;
-  if (elements.heroConfigMartingala) elements.heroConfigMartingala.textContent = config.usarMartingala ? 'Activada ✅' : 'Desactivada';
+  if (elements.heroConfigFiltro) {
+    elements.heroConfigFiltro.textContent = `Racha ≥ ${config.umbralRacha || 6} | Z ≥ ${config.umbralZScore || 2.0}σ`;
+  }
+  if (elements.heroConfigMartingala) {
+    elements.heroConfigMartingala.textContent = config.usarMartingala ? 'Activada ✅' : 'Desactivada';
+  }
   if (elements.heroConfigModo) {
     elements.heroConfigModo.textContent = config.usarMartingala
-      ? (config.modoMartingala === 2 ? 'Escalonada' : 'Conteo básico')
-      : 'Inactivo';
+      ? (config.modoMartingala === 2 ? 'Escalonada (Max 4)' : 'Plana condicional')
+      : 'Filtro Condicional';
   }
   if (elements.heroConfigApuesta) {
     elements.heroConfigApuesta.textContent = config.usarMartingala
@@ -1037,9 +1367,10 @@ const renderConfig = (config) => {
 
   // Sincronizar valores en el form del modal
   if (elements.tipoRuleta) elements.tipoRuleta.value = config.tipoRuleta;
-  if (elements.tipoJuego)  elements.tipoJuego.value  = config.tipoJuego;
+  if (elements.umbralRacha) elements.umbralRacha.value = config.umbralRacha || 6;
+  if (elements.umbralZScore) elements.umbralZScore.value = config.umbralZScore || 2.0;
   if (elements.usarMartingala) elements.usarMartingala.checked = Boolean(config.usarMartingala);
-  if (elements.modoMartingala) elements.modoMartingala.value  = config.modoMartingala;
+  if (elements.modoMartingala) elements.modoMartingala.value = config.modoMartingala;
   if (elements.valorApuestaBase) elements.valorApuestaBase.value = config.valorApuestaBase;
   toggleMartingalaFields(config.usarMartingala);
 };
@@ -1108,6 +1439,7 @@ const renderHistory = (historial) => {
 const refreshUI = () => {
   const stats = predictor.getEstadisticas();
   renderStats(stats);
+  renderCopilot(predictor.ultimoAnalisis);
   renderHistory(predictor.historialNumeros);
   renderBalanceChart();
   updateBalanceSummary();
@@ -1128,8 +1460,8 @@ const resetSession = () => {
   const display = document.getElementById('selectedDisplay');
   if (display) display.textContent = 'Ningún número seleccionado';
   refreshUI();
-  logMessage('Sesión reiniciada en el cliente', 'success');
-  setHeroLevel('Listo con estado limpio');
+  logMessage('Sesión reiniciada con estado limpio', 'success');
+  setHeroLevel('Motor Antigravity Activo ⚡');
 };
 
 // ─────────────────────────────────────────────
@@ -1143,28 +1475,29 @@ const closeModal = () => elements.configModal.setAttribute('aria-hidden', 'true'
 
 const handleConfigSubmit = (event) => {
   event.preventDefault();
-  const rawBase = Number(elements.valorApuestaBase.value);
+  const rawBase = Number(elements.valorApuestaBase?.value);
   const valorApuestaBase = Number.isFinite(rawBase) && rawBase >= 100 ? Math.round(rawBase) : 1000;
 
   const payload = {
-    tipoRuleta: elements.tipoRuleta.value,
-    tipoJuego: elements.tipoJuego.value,
-    usarMartingala: elements.usarMartingala.checked,
-    modoMartingala: Number(elements.modoMartingala.value),
+    tipoRuleta: elements.tipoRuleta?.value || 'Europea',
+    umbralRacha: Number(elements.umbralRacha?.value) || 6,
+    umbralZScore: Number(elements.umbralZScore?.value) || 2.0,
+    usarMartingala: elements.usarMartingala?.checked ?? false,
+    modoMartingala: Number(elements.modoMartingala?.value) || 1,
     valorApuestaBase
   };
 
-  setHeroLevel('Guardando configuración...');
+  setHeroLevel('Guardando parámetros...');
   try {
     const config = predictor.actualizarConfig(payload);
     saveState();
     refreshUI();
-    logMessage('Configuración actualizada localmente', 'success');
+    logMessage('Parámetros del motor cuantitativo actualizados', 'success');
     closeModal();
   } catch (error) {
     logMessage('Error guardando configuración: ' + error.message, 'error');
   } finally {
-    setHeroLevel('Configuración lista');
+    setHeroLevel('Motor Antigravity Activo ⚡');
     updateLastSync();
   }
 };
@@ -1222,19 +1555,16 @@ const handlePadSubmit = () => {
     return;
   }
 
-  setHeroLevel('Procesando número...');
+  setHeroLevel('Procesando tirada...');
   try {
     const payload = predictor.agregarNumero(selectedNumber);
     saveState();
     refreshUI();
-    logMessage(
-      `Número ${selectedNumber} → ${payload.resultado?.mensaje}`,
-      payload.resultado?.acierto ? 'success' : 'warn'
-    );
-    setHeroLevel('Número procesado');
+    logMessage(payload.logTexto, payload.logTone);
+    setHeroLevel('Tirada procesada');
   } catch (error) {
     logMessage('Error al registrar número: ' + error.message, 'error');
-    setHeroLevel('Error procesando número');
+    setHeroLevel('Error procesando tirada');
   } finally {
     selectedNumber = null;
     document.querySelectorAll('#roulettePad button.selected')

@@ -285,6 +285,178 @@ main {
   border-color: rgba(255, 255, 255, 0.2);
 }
 
+/* --------------------------------------------
+   4.1 PANEL CO-PILOTO ANTIGRAVITY
+   -------------------------------------------- */
+.panel--copilot {
+  background: linear-gradient(135deg, rgba(255, 230, 0, 0.04), rgba(10, 10, 16, 0.96));
+  border: 1px solid rgba(255, 230, 0, 0.25);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.panel--copilot::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+}
+
+/* Copilot Signal Badge */
+.copilot-signal {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 1.1rem;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: var(--transition-base);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+.copilot-signal.signal-esperar {
+  background: rgba(250, 204, 21, 0.12);
+  border: 1px solid rgba(250, 204, 21, 0.4);
+  color: #fef08a;
+}
+
+.copilot-signal.signal-esperar .signal-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #facc15;
+  box-shadow: 0 0 10px #facc15;
+  animation: pulse-amber 2s infinite ease-in-out;
+}
+
+.copilot-signal.signal-accion {
+  background: rgba(34, 197, 94, 0.2);
+  border: 1.5px solid #22c55e;
+  color: #86efac;
+  box-shadow: 0 0 20px rgba(34, 197, 94, 0.4);
+}
+
+.copilot-signal.signal-accion .signal-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 14px #22c55e;
+  animation: pulse-green 1s infinite ease-in-out;
+}
+
+@keyframes pulse-amber {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
+}
+
+@keyframes pulse-green {
+  0%, 100% { opacity: 1; transform: scale(1.15); box-shadow: 0 0 16px #22c55e; }
+  50% { opacity: 0.7; transform: scale(0.9); box-shadow: 0 0 6px #22c55e; }
+}
+
+/* Copilot Grid */
+.copilot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin: 1.2rem 0;
+}
+
+.copilot-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 1rem 1.1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.85rem;
+  transition: var(--transition-fast);
+}
+
+.copilot-card:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.copilot-card__label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--text-muted);
+}
+
+.copilot-card__value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+}
+
+.copilot-card__sub {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  opacity: 0.85;
+}
+
+.risk-low { color: #86efac !important; }
+.risk-med { color: #fde047 !important; }
+.risk-high { color: #fb923c !important; }
+.risk-critical { color: #f87171 !important; }
+
+/* Copilot Banner */
+.copilot-banner {
+  margin-top: 0.5rem;
+  padding: 1rem 1.2rem;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-left: 3px solid var(--gold);
+  border-radius: 0.75rem;
+}
+
+.copilot-banner__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.8rem;
+  margin-bottom: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.copilot-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--gold);
+  background: rgba(255, 230, 0, 0.1);
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 230, 0, 0.25);
+}
+
+.copilot-target {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #93c5fd;
+}
+
+.copilot-diagnosis {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
 .panel__header {
   display: flex;
   justify-content: space-between;
