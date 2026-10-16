@@ -2,6 +2,9 @@ const STORAGE_KEY = 'ruletaPredictorState';
 const DEFAULT_LATEST_MESSAGE = 'Ningún número registrado aún.';
 const MAX_HISTORIAL_REGISTROS = 1000;
 
+// ─────────────────────────────────────────────
+// COLORES OFICIALES DE RULETA EUROPEA (0 - 36)
+// ─────────────────────────────────────────────
 const RULETA_COLORES = {
   0: 'verde',
   1: 'rojo', 2: 'negro', 3: 'rojo', 4: 'negro', 5: 'rojo', 6: 'negro',
@@ -13,7 +16,51 @@ const RULETA_COLORES = {
 };
 
 // ─────────────────────────────────────────────
-// MOTOR CUANTITATIVO ANTIGRAVITY (PROBABILÍSTICO)
+// MAPA DE SECUENCIA C — D — E (PATRÓN DE COLORES)
+// Define las 3 etapas encadenadas para cada número
+// ─────────────────────────────────────────────
+const PATRON_COLORES = {
+  0: ['verde', 'verde', 'verde'],
+  1: ['rojo', 'rojo', 'negro'],
+  2: ['negro', 'negro', 'negro'],
+  3: ['rojo', 'negro', 'rojo'],
+  4: ['negro', 'negro', 'negro'],
+  5: ['rojo', 'negro', 'rojo'],
+  6: ['negro', 'negro', 'negro'],
+  7: ['rojo', 'negro', 'rojo'],
+  8: ['negro', 'negro', 'rojo'],
+  9: ['rojo', 'negro', 'rojo'],
+  10: ['negro', 'negro', 'rojo'],
+  11: ['negro', 'negro', 'rojo'],
+  12: ['rojo', 'rojo', 'negro'],
+  13: ['negro', 'rojo', 'negro'],
+  14: ['rojo', 'rojo', 'negro'],
+  15: ['negro', 'rojo', 'rojo'],
+  16: ['rojo', 'negro', 'rojo'],
+  17: ['negro', 'rojo', 'negro'],
+  18: ['rojo', 'negro', 'rojo'],
+  19: ['rojo', 'negro', 'rojo'],
+  20: ['negro', 'rojo', 'rojo'],
+  21: ['rojo', 'rojo', 'rojo'],
+  22: ['negro', 'rojo', 'rojo'],
+  23: ['rojo', 'negro', 'rojo'],
+  24: ['negro', 'rojo', 'negro'],
+  25: ['rojo', 'negro', 'rojo'],
+  26: ['negro', 'negro', 'rojo'],
+  27: ['rojo', 'rojo', 'negro'],
+  28: ['negro', 'negro', 'rojo'],
+  29: ['negro', 'negro', 'rojo'],
+  30: ['rojo', 'negro', 'rojo'],
+  31: ['negro', 'rojo', 'rojo'],
+  32: ['rojo', 'negro', 'rojo'],
+  33: ['negro', 'negro', 'rojo'],
+  34: ['rojo', 'rojo', 'rojo'],
+  35: ['negro', 'negro', 'negro'],
+  36: ['rojo', 'rojo', 'rojo']
+};
+
+// ─────────────────────────────────────────────
+// CLASE PRINCIPAL: RULETA PREDICTOR & ANTIGRAVITY
 // ─────────────────────────────────────────────
 class RuletaPredictor {
   constructor() {
@@ -22,17 +69,17 @@ class RuletaPredictor {
 
   calcularNivelesMartingala(base) {
     const b = Number(base) || 1000;
-    return [b, b * 2, b * 4, b * 8]; // Límite estricto de 4 escalones para control de varianza
+    return [b, b * 2, b * 4, b * 8]; // Límite estricto de 4 niveles para control de varianza
   }
 
   getDefaultConfig() {
     const base = 1000;
     return {
       tipoRuleta: 'Europea',
-      umbralRacha: 6,
-      umbralZScore: 2.0,
+      umbralRacha: 4, // Calibrado para respuesta en sesiones reales (1 en ~18 tiradas)
+      umbralZScore: 1.5,
       usarMartingala: false,
-      modoMartingala: 1, // 1: Apuesta plana condicional, 2: Escalonada
+      modoMartingala: 1, // 1: Plana condicional, 2: Escalonada
       valorApuestaBase: base,
       nivelesMartingala: this.calcularNivelesMartingala(base)
     };
@@ -42,11 +89,22 @@ class RuletaPredictor {
     const config = this.getDefaultConfig();
     this.historialNumeros = [];
     this.totalTiradasContador = 0;
+
+    // Estado del Patrón Secuencial C-D-E
+    this.patronActivo = false;
+    this.patronNumeroOrigen = null;
+    this.patronActual = [];
+    this.etapaActual = 0; // 0: C, 1: D, 2: E
+    this.ultimoPatronResultado = null;
+
+    // Configuración y Capital
     this.config = { ...config };
     this.saldoMartingala = 0;
     this.nivelMartingala = 0;
     this.apuestaActual = config.valorApuestaBase;
     this.posicionAbierta = null;
+
+    // Diagnósticos y Línea temporal de velas
     this.ultimoResultado = null;
     this.ultimoAnalisis = null;
     this.balanceTimeline = [];
@@ -61,6 +119,15 @@ class RuletaPredictor {
     this.totalTiradasContador = typeof state.totalTiradasContador === 'number'
       ? state.totalTiradasContador
       : this.historialNumeros.length;
+
+    // Restaurar patrón C-D-E
+    this.patronActivo = Boolean(state.patronActivo);
+    this.patronNumeroOrigen = state.patronNumeroOrigen ?? null;
+    this.patronActual = Array.isArray(state.patronActual) ? state.patronActual : [];
+    this.etapaActual = typeof state.etapaActual === 'number' ? state.etapaActual : 0;
+    this.ultimoPatronResultado = state.ultimoPatronResultado || null;
+
+    // Configuración
     this.config = { ...this.getDefaultConfig(), ...state.config };
     if (!Array.isArray(this.config.nivelesMartingala) || !this.config.nivelesMartingala.length) {
       this.config.nivelesMartingala = this.calcularNivelesMartingala(this.config.valorApuestaBase);
@@ -77,10 +144,10 @@ class RuletaPredictor {
       this.balanceTimeline = this.balanceTimeline.slice(-MAX_HISTORIAL_REGISTROS);
     }
 
-    // Re-evaluar motor si hay historial pero falta el análisis
+    // Re-evaluar motor si hay tiradas pero falta análisis
     if (this.historialNumeros.length > 0 && !this.ultimoAnalisis) {
-      const ultimoNum = this.historialNumeros[this.historialNumeros.length - 1].numero;
-      this.ultimoAnalisis = this.evaluarMotorAntigravity(ultimoNum);
+      const ultimo = this.historialNumeros[this.historialNumeros.length - 1];
+      this.ultimoAnalisis = this.evaluarMotorAntigravity(ultimo.numero, this.ultimoPatronResultado);
     }
   }
 
@@ -88,6 +155,11 @@ class RuletaPredictor {
     return {
       historialNumeros: this.historialNumeros,
       totalTiradasContador: this.totalTiradasContador,
+      patronActivo: this.patronActivo,
+      patronNumeroOrigen: this.patronNumeroOrigen,
+      patronActual: this.patronActual,
+      etapaActual: this.etapaActual,
+      ultimoPatronResultado: this.ultimoPatronResultado,
       config: this.config,
       saldoMartingala: this.saldoMartingala,
       nivelMartingala: this.nivelMartingala,
@@ -119,6 +191,151 @@ class RuletaPredictor {
     return { numero, color, paridad, rango, docena, columna };
   }
 
+  // ─────────────────────────────────────────────
+  // 1. ANÁLISIS DE PATRÓN SECUENCIAL C — D — E
+  // ─────────────────────────────────────────────
+  analizarPatron(numero) {
+    const colorReal = this.getColor(numero);
+
+    // Si cae 0, el patrón secuencial se reinicia automáticamente (factor disyuntor de la casa)
+    if (numero === 0) {
+      this.patronActivo = false;
+      this.patronNumeroOrigen = null;
+      this.patronActual = [];
+      this.etapaActual = 0;
+      const res = {
+        mensaje: 'Aparición del 0 (Verde). Margen de la casa aplicado. Secuencia C-D-E reiniciada.',
+        acierto: null,
+        etapa: null,
+        completo: false,
+        siguienteEsperado: null
+      };
+      this.ultimoPatronResultado = res;
+      return res;
+    }
+
+    if (!PATRON_COLORES[numero]) {
+      this.patronActivo = false;
+      this.patronNumeroOrigen = null;
+      this.patronActual = [];
+      this.etapaActual = 0;
+      const res = {
+        mensaje: `Número ${numero} sin patrón asignado. Secuencia reseteada.`,
+        acierto: null,
+        etapa: null,
+        completo: false,
+        siguienteEsperado: null
+      };
+      this.ultimoPatronResultado = res;
+      return res;
+    }
+
+    const letras = ['C', 'D', 'E'];
+
+    // Si NO hay patrón activo, la tirada actual define e inaugura la secuencia
+    if (!this.patronActivo) {
+      this.patronActual = [...PATRON_COLORES[numero]];
+      this.patronNumeroOrigen = numero;
+      this.patronActivo = true;
+      this.etapaActual = 0;
+
+      const esperadoC = this.patronActual[0];
+      if (colorReal === esperadoC) {
+        // Etapa C superada inmediatamente con el número de inicio
+        this.etapaActual = 1; // Avanza a esperar Etapa D
+        const res = {
+          mensaje: `Patrón activado por #${numero}. Etapa C superada ✅. Próximo color esperado (Etapa D): ${this.patronActual[1].toUpperCase()}`,
+          acierto: true,
+          etapa: 'C',
+          completo: false,
+          siguienteEsperado: this.patronActual[1],
+          esperado: esperadoC,
+          salio: colorReal
+        };
+        this.ultimoPatronResultado = res;
+        return res;
+      }
+
+      // No coincidió con la primera fase teórica
+      this.patronActivo = false;
+      this.patronNumeroOrigen = null;
+      this.patronActual = [];
+      this.etapaActual = 0;
+      const res = {
+        mensaje: `Patrón activado por #${numero}, pero no coincidió con Etapa C (esperado: ${esperadoC}, salió: ${colorReal}). Se reinicia.`,
+        acierto: false,
+        etapa: 'C',
+        completo: false,
+        siguienteEsperado: null,
+        esperado: esperadoC,
+        salio: colorReal
+      };
+      this.ultimoPatronResultado = res;
+      return res;
+    }
+
+    // Si ya HAY un patrón activo en curso (esperando Etapa D o Etapa E)
+    const esperado = this.patronActual[this.etapaActual];
+    const etapaLetra = letras[this.etapaActual];
+
+    if (colorReal === esperado) {
+      this.etapaActual++;
+
+      if (this.etapaActual === 3) {
+        // ¡Etapa E completada con éxito!
+        this.patronActivo = false;
+        this.patronNumeroOrigen = null;
+        this.patronActual = [];
+        this.etapaActual = 0;
+        const res = {
+          mensaje: `🎯 ¡Acierto en Etapa E! Secuencia C-D-E completada con éxito. Reiniciando ciclo secuencial.`,
+          acierto: true,
+          etapa: 'E',
+          completo: true,
+          siguienteEsperado: null,
+          esperado,
+          salio: colorReal
+        };
+        this.ultimoPatronResultado = res;
+        return res;
+      }
+
+      // Etapa D superada, ahora esperando Etapa E (fase de entrada/apuesta)
+      const res = {
+        mensaje: `✅ Acierto en Etapa ${etapaLetra}. ¡Atención! Próximo color esperado (Etapa ${letras[this.etapaActual]} - Fase de Disparo): ${this.patronActual[this.etapaActual].toUpperCase()}`,
+        acierto: true,
+        etapa: etapaLetra,
+        completo: false,
+        siguienteEsperado: this.patronActual[this.etapaActual],
+        esperado,
+        salio: colorReal
+      };
+      this.ultimoPatronResultado = res;
+      return res;
+    }
+
+    // Fallo en la etapa en curso
+    const falloLetra = etapaLetra;
+    this.patronActivo = false;
+    this.patronNumeroOrigen = null;
+    this.patronActual = [];
+    this.etapaActual = 0;
+    const res = {
+      mensaje: `❌ Fallo en Etapa ${falloLetra}. Color esperado: ${esperado.toUpperCase()}, Salió: ${colorReal.toUpperCase()}. Patrón reiniciado.`,
+      acierto: false,
+      etapa: falloLetra,
+      completo: false,
+      siguienteEsperado: null,
+      esperado,
+      salio: colorReal
+    };
+    this.ultimoPatronResultado = res;
+    return res;
+  }
+
+  // ─────────────────────────────────────────────
+  // 2. CÁLCULO DE RACHAS (TEMPORALES)
+  // ─────────────────────────────────────────────
   calcularRachas() {
     if (!this.historialNumeros.length) return null;
     const n = this.historialNumeros.length;
@@ -156,6 +373,9 @@ class RuletaPredictor {
     const probParidad = Math.pow(pSimple, countParidad);
     const probRango = Math.pow(pSimple, countRango);
 
+    const probRupturaColor = (1 - probColor) * 100;
+    const probRupturaParidad = (1 - probParidad) * 100;
+
     const formatProb = (p) => {
       const pct = p * 100;
       return pct < 0.01 ? `${pct.toExponential(2)}%` : `${pct.toFixed(2)}%`;
@@ -167,6 +387,7 @@ class RuletaPredictor {
         count: countColor,
         probabilidad: formatProb(probColor),
         probRaw: probColor,
+        probRuptura: probRupturaColor.toFixed(1),
         texto: `${countColor} ${ultimo.color.toUpperCase()}`
       },
       paridad: {
@@ -174,6 +395,7 @@ class RuletaPredictor {
         count: countParidad,
         probabilidad: formatProb(probParidad),
         probRaw: probParidad,
+        probRuptura: probRupturaParidad.toFixed(1),
         texto: `${countParidad} ${ultimo.paridad.toUpperCase()}`
       },
       rango: {
@@ -186,6 +408,9 @@ class RuletaPredictor {
     };
   }
 
+  // ─────────────────────────────────────────────
+  // 3. DESVIACIÓN ESTÁNDAR (Z-SCORE)
+  // ─────────────────────────────────────────────
   calcularZScores() {
     const total = this.historialNumeros.length;
     if (!total) return { local: 0, macro: 0 };
@@ -232,6 +457,9 @@ class RuletaPredictor {
     };
   }
 
+  // ─────────────────────────────────────────────
+  // 4. GESTIÓN DEL FACTOR CERO
+  // ─────────────────────────────────────────────
   calcularEstadisticasCero() {
     const total = this.historialNumeros.length;
     if (!total) return { count: 0, gap: 0, ratio: '0.0', expectedRatio: '2.70' };
@@ -254,7 +482,10 @@ class RuletaPredictor {
     return { count, gap, ratio, expectedRatio: '2.70' };
   }
 
-  evaluarMotorAntigravity(nuevoNumero) {
+  // ─────────────────────────────────────────────
+  // 5. EVALUACIÓN CONJUNTA ANTIGRAVITY + C-D-E
+  // ─────────────────────────────────────────────
+  evaluarMotorAntigravity(nuevoNumero, resultadoPatron) {
     const rachas = this.calcularRachas();
     const zScores = this.calcularZScores();
     const ceroStats = this.calcularEstadisticasCero();
@@ -263,26 +494,25 @@ class RuletaPredictor {
       return {
         signal: 'ESPERAR',
         target: null,
+        targetType: null,
         rachaActiva: null,
         zScore: zScores,
         riesgo: 'BAJO',
         filtroFrenoActivo: true,
         ceroStats,
-        diagnostico: 'Inicializando motor cuantitativo. Registra tiradas para calibrar la varianza.',
+        diagnostico: 'Inicializando radar cuantitativo. Registra tiradas para calibrar la varianza.',
         mensajeLog: 'Sistema en espera de datos.'
       };
     }
 
-    const umbralRacha = Number(this.config.umbralRacha) || 6;
-    const umbralZ = Number(this.config.umbralZScore) || 2.0;
+    const umbralRacha = Number(this.config.umbralRacha) || 4;
+    const umbralZ = Number(this.config.umbralZScore) || 1.5;
 
     const rColor = rachas.color;
     const rParidad = rachas.paridad;
-    const rRango = rachas.rango;
 
     let rachaDominante = rColor;
     if (rParidad && rParidad.count > rachaDominante.count) rachaDominante = rParidad;
-    if (rRango && rRango.count > rachaDominante.count) rachaDominante = rRango;
 
     let signal = 'ESPERAR';
     let target = null;
@@ -291,59 +521,89 @@ class RuletaPredictor {
     let diagnostico = '';
     let mensajeLog = '';
 
-    const dintelRachaColor = Math.max(7, umbralRacha);
-    const cumpleDintelColor =
-      (rColor.count >= umbralRacha && Math.abs(zScores.local) >= umbralZ) ||
-      rColor.count >= dintelRachaColor;
+    // Condición de racha de color Antigravity
+    const esRachaColorSignificativa = rColor.count >= umbralRacha;
+    const targetOpuestoColor = rColor.tipo === 'rojo' ? 'NEGRO' : 'ROJO';
 
-    const dintelRachaParidad = Math.max(7, umbralRacha);
-    const cumpleDintelParidad =
-      rParidad &&
-      rParidad.tipo !== 'cero' &&
-      ((rParidad.count >= umbralRacha && Math.abs(zScores.local) >= umbralZ) ||
-        rParidad.count >= dintelRachaParidad);
+    // Condición de racha de paridad
+    const esRachaParidadSignificativa = rParidad && rParidad.tipo !== 'cero' && rParidad.count >= umbralRacha;
+    const targetOpuestoParidad = rParidad?.tipo === 'par' ? 'IMPAR' : 'PAR';
 
-    // Gestión del Cero (0)
+    // Estado del patrón C-D-E actual
+    const enEtapaE = this.patronActivo && this.etapaActual === 2;
+    const enEtapaD = this.patronActivo && this.etapaActual === 1;
+    const colorEsperadoE = enEtapaE ? this.patronActual[2]?.toUpperCase() : null;
+    const colorEsperadoD = enEtapaD ? this.patronActual[1]?.toUpperCase() : null;
+
+    // 1. CASO CERO (0)
     if (nuevoNumero === 0) {
       signal = 'ESPERAR';
       target = null;
       riesgo = 'MEDIO';
-      diagnostico = `Aparición del Cero (0). Se aplicó la absorción del margen de la casa (2.70%). Las simetrías de suertes simples quedan suspendidas.`;
+      diagnostico = `Aparición del Cero (0). Se aplicó la absorción del margen de la casa (2.70%). Simetrías suspendidas temporalmente.`;
       mensajeLog = `Tirada #${this.totalTiradasContador} → #0 Verde | Disrupción por Cero. Filtro: [ESPERAR].`;
     }
-    // Filtro de Freno: Condición Favorable para Color
-    else if (cumpleDintelColor) {
-      signal = 'CONDICION_FAVORABLE';
-      target = rColor.tipo === 'rojo' ? 'NEGRO' : 'ROJO';
+    // 2. CONFLUENCIA MÁXIMA: ETAPA E + RACHA DE VARIANZA ALINEADA
+    else if (enEtapaE && esRachaColorSignificativa && targetOpuestoColor === colorEsperadoE) {
+      signal = 'CONFLUENCIA_ALTA';
+      target = colorEsperadoE;
       targetType = 'color';
-      riesgo = rColor.count >= 8 ? 'ALTO' : 'MEDIO';
-      diagnostico = `ANOMALÍA DETECTADA: Racha de ${rColor.count} ${rColor.tipo.toUpperCase()}S con Z-Score de ${zScores.local >= 0 ? '+' : ''}${zScores.local}σ (P = ${rColor.probabilidad}). Dintel superado: entrada válida buscando reversión hacia ${target}.`;
-      mensajeLog = `Tirada #${this.totalTiradasContador} → #${nuevoNumero} ${rColor.tipo.toUpperCase()} | Racha crítica ${rColor.count} (${rColor.probabilidad}) | Z: ${zScores.local}σ | Señal: [CONDICIÓN FAVORABLE] → ${target}.`;
+      riesgo = 'BAJO';
+      diagnostico = `⚡ ¡MÁXIMA CONFLUENCIA ESTADÍSTICA! La Etapa E del Patrón coincide exactamente con la reversión de racha Antigravity (${rColor.count} ${rColor.tipo.toUpperCase()}S, ruptura: ${rColor.probRuptura}%). Entrada recomendada hacia ${target}.`;
+      mensajeLog = `Tirada #${this.totalTiradasContador} → CONFLUENCIA ALTA | Patrón Etapa E + Racha de ${rColor.count} ${rColor.tipo.toUpperCase()} | Objetivo: [${target}].`;
     }
-    // Filtro de Freno: Condición Favorable para Paridad
-    else if (cumpleDintelParidad) {
+    // 3. ACCIÓN POR ETAPA E DEL PATRÓN
+    else if (enEtapaE) {
+      signal = 'ACCION_PATRON_E';
+      target = colorEsperadoE;
+      targetType = 'color';
+      riesgo = 'MEDIO';
+      diagnostico = `🎯 FASE DE DISPARO: La Secuencia C-D-E alcanzó la Etapa E. Próxima tirada es el objetivo de acción hacia ${target}.`;
+      mensajeLog = `Tirada #${this.totalTiradasContador} → Disparo Etapa E | Objetivo de patrón: [${target}].`;
+    }
+    // 4. CONDICIÓN FAVORABLE POR RACHA ANTIGRAVITY (COLOR)
+    else if (esRachaColorSignificativa) {
       signal = 'CONDICION_FAVORABLE';
-      target = rParidad.tipo === 'par' ? 'IMPAR' : 'PAR';
-      targetType = 'paridad';
-      riesgo = rParidad.count >= 8 ? 'ALTO' : 'MEDIO';
-      diagnostico = `ANOMALÍA DETECTADA: Racha de ${rParidad.count} ${rParidad.tipo.toUpperCase()}ES (P = ${rParidad.probabilidad}). Dintel superado: entrada válida buscando reversión hacia ${target}.`;
-      mensajeLog = `Tirada #${this.totalTiradasContador} → #${nuevoNumero} | Racha paridad ${rParidad.count} (${rParidad.probabilidad}) | Señal: [CONDICIÓN FAVORABLE] → ${target}.`;
+      target = targetOpuestoColor;
+      targetType = 'color';
+      riesgo = rColor.count >= 6 ? 'MEDIO-ALTO' : 'MEDIO';
+      diagnostico = `FILTRO DE FRENO SUPERADO: Racha activa de ${rColor.count} ${rColor.tipo.toUpperCase()}S (Z = ${zScores.local >= 0 ? '+' : ''}${zScores.local}σ, P(ruptura) = ${rColor.probRuptura}%). Desviación estadística propicia para reversión a ${target}.`;
+      mensajeLog = `Tirada #${this.totalTiradasContador} → Racha ${rColor.count} ${rColor.tipo.toUpperCase()} | Z: ${zScores.local}σ | Señal: [CONDICIÓN FAVORABLE] → ${target}.`;
     }
-    // Filtro de Freno: Estado por defecto ESPERAR
+    // 5. CONDICIÓN FAVORABLE POR RACHA ANTIGRAVITY (PARIDAD)
+    else if (esRachaParidadSignificativa) {
+      signal = 'CONDICION_FAVORABLE';
+      target = targetOpuestoParidad;
+      targetType = 'paridad';
+      riesgo = rParidad.count >= 6 ? 'MEDIO-ALTO' : 'MEDIO';
+      diagnostico = `FILTRO DE FRENO SUPERADO: Racha de ${rParidad.count} ${rParidad.tipo.toUpperCase()}ES (P(ruptura) = ${rParidad.probRuptura}%). Entrada favorable hacia ${target}.`;
+      mensajeLog = `Tirada #${this.totalTiradasContador} → Racha paridad ${rParidad.count} | Señal: [CONDICIÓN FAVORABLE] → ${target}.`;
+    }
+    // 6. PRE-ALERTA (RACHA DE 3)
+    else if (rColor.count === 3) {
+      signal = 'PRE_ALERTA';
+      target = targetOpuestoColor;
+      targetType = 'color';
+      riesgo = 'BAJO';
+      diagnostico = `PRE-ALERTA ANTIGRAVITY: Racha de 3 ${rColor.tipo.toUpperCase()}S (88.5% prob. teórica de ruptura). La tensión estadística aumenta; preparar posición para posible entrada en tirada 4.`;
+      mensajeLog = `Tirada #${this.totalTiradasContador} → Pre-alerta Racha 3 ${rColor.tipo.toUpperCase()} | Reversión potencial a ${target}.`;
+    }
+    // 7. SEGUIMIENTO DE PATRÓN (ETAPA C SUPERADA, ESPERANDO ETAPA D)
+    else if (enEtapaD) {
+      signal = 'SEGUIMIENTO_PATRON';
+      target = colorEsperadoD;
+      targetType = 'color';
+      riesgo = 'BAJO';
+      diagnostico = `SEGUIMIENTO DE SECUENCIA: Etapa C superada. En espera de confirmación en Etapa D hacia ${target}. Filtro de Freno activo para apuestas.`;
+      mensajeLog = `Tirada #${this.totalTiradasContador} → Patrón en Etapa D | Esperado: [${target}].`;
+    }
+    // 8. FILTRO DE FRENO ACTIVO (ESPERAR)
     else {
       signal = 'ESPERAR';
       target = null;
-      if (rColor.count >= 4) {
-        riesgo = 'MEDIO';
-        diagnostico = `Racha de ${rColor.count} ${rColor.tipo.toUpperCase()}S en formación (Z = ${zScores.local >= 0 ? '+' : ''}${zScores.local}σ). FILTRO DE FRENO ACTIVO: No operar prematuramente (evitar falacia del apostador).`;
-      } else if (Math.abs(zScores.local) < 1.0) {
-        riesgo = 'BAJO';
-        diagnostico = `Distribución local en equilibrio estocástico (|Z| < 1.0σ). Sin asimetría aprovechable. Paciencia y preservación de capital.`;
-      } else {
-        riesgo = 'BAJO';
-        diagnostico = `Tensión de varianza moderada (Z = ${zScores.local >= 0 ? '+' : ''}${zScores.local}σ). No alcanza el umbral de entrada (Racha < ${umbralRacha} o |Z| < ${umbralZ}σ).`;
-      }
-      mensajeLog = `Tirada #${this.totalTiradasContador} → #${nuevoNumero} ${rColor.tipo.toUpperCase()} | Racha: ${rColor.count} | Z: ${zScores.local}σ | Señal: [ESPERAR].`;
+      riesgo = 'BAJO';
+      diagnostico = `FILTRO DE FRENO ACTIVO: Distribución dentro de varianza ordinaria (|Z| = ${Math.abs(zScores.local)}σ). Preservar capital y evitar apuestas no autorizadas hasta superar umbral (Racha ≥ ${umbralRacha} o avance a Etapa E).`;
+      mensajeLog = `Tirada #${this.totalTiradasContador} → #${nuevoNumero} ${rColor.tipo.toUpperCase()} | Racha: ${rColor.count} | Filtro: [ESPERAR].`;
     }
 
     return {
@@ -353,13 +613,16 @@ class RuletaPredictor {
       rachaActiva: rachaDominante,
       zScore: zScores,
       riesgo,
-      filtroFrenoActivo: signal === 'ESPERAR',
+      filtroFrenoActivo: signal === 'ESPERAR' || signal === 'SEGUIMIENTO_PATRON',
       ceroStats,
       diagnostico,
       mensajeLog
     };
   }
 
+  // ─────────────────────────────────────────────
+  // 6. PROCESAMIENTO DE CAPITAL Y APUESTAS
+  // ─────────────────────────────────────────────
   procesarApuestaCondicional(propsNumero) {
     if (!this.config.usarMartingala) return null;
 
@@ -388,7 +651,7 @@ class RuletaPredictor {
         if (this.config.modoMartingala === 2) {
           this.nivelMartingala++;
           if (this.nivelMartingala >= this.config.nivelesMartingala.length) {
-            this.nivelMartingala = 0;
+            this.nivelMartingala = 0; // Reseteo para evitar descapitalización
           }
           this.apuestaActual = this.config.nivelesMartingala[this.nivelMartingala] || this.config.valorApuestaBase;
         } else {
@@ -434,15 +697,23 @@ class RuletaPredictor {
     return { high, low };
   }
 
+  // ─────────────────────────────────────────────
+  // 7. REGISTRAR NÚMERO (PIPELINE PRINCIPAL)
+  // ─────────────────────────────────────────────
   agregarNumero(numero) {
     const props = this.getPropiedades(numero);
     const previousBalance = this.saldoMartingala;
 
-    // 1. Resolver posición condicional previa si existía
+    // 1. Resolver posición previa en juego
     const martingala = this.procesarApuestaCondicional(props);
 
-    // 2. Registrar en historial
+    // 2. Incrementar contador global
     this.totalTiradasContador++;
+
+    // 3. Ejecutar análisis del patrón secuencial C-D-E
+    const resultadoPatron = this.analizarPatron(numero);
+
+    // 4. Guardar tirada en historial
     const registro = {
       numero,
       color: props.color,
@@ -451,34 +722,42 @@ class RuletaPredictor {
       docena: props.docena,
       columna: props.columna,
       timestamp: new Date().toISOString(),
-      tiradaNumero: this.totalTiradasContador
+      tiradaNumero: this.totalTiradasContador,
+      resultadoPatron
     };
     this.historialNumeros.push(registro);
     if (this.historialNumeros.length > MAX_HISTORIAL_REGISTROS) {
       this.historialNumeros.shift();
     }
 
-    // 3. Evaluar estado analítico cuantitativo
-    const analisis = this.evaluarMotorAntigravity(numero);
+    // 5. Evaluar radar Antigravity combinando con el patrón
+    const analisis = this.evaluarMotorAntigravity(numero, resultadoPatron);
     this.ultimoAnalisis = analisis;
 
-    // 4. Si la señal es favorable y las apuestas están activas, preparar posición para la siguiente tirada
-    if (this.config.usarMartingala && analisis.signal === 'CONDICION_FAVORABLE') {
+    // 6. Preparar posición para la siguiente tirada si las condiciones habilitan entrada
+    const esAccionable =
+      analisis.signal === 'CONFLUENCIA_ALTA' ||
+      analisis.signal === 'CONDICION_FAVORABLE' ||
+      analisis.signal === 'ACCION_PATRON_E';
+
+    if (this.config.usarMartingala && esAccionable && analisis.target) {
       this.posicionAbierta = {
         target: analisis.target,
         targetType: analisis.targetType,
-        monto: this.apuestaActual
+        monto: this.apuestaActual,
+        origen: analisis.signal
       };
     } else {
       this.posicionAbierta = null;
     }
 
-    // 5. Registrar en gráfico de balance
+    // 7. Grabar vela en la curva de balance
     this.recordBalanceStep(previousBalance, martingala, this.totalTiradasContador);
 
     this.ultimoResultado = {
       numero,
       color: props.color,
+      resultadoPatron,
       analisis,
       martingala,
       tiradaNumero: this.totalTiradasContador
@@ -487,13 +766,12 @@ class RuletaPredictor {
     return {
       ...this.ultimoResultado,
       estadisticas: this.getEstadisticas(),
-      logTexto: analisis.mensajeLog,
-      logTone:
-        analisis.signal === 'CONDICION_FAVORABLE'
-          ? 'success'
-          : props.color === 'verde'
-            ? 'warn'
-            : 'info'
+      logTexto: `${resultadoPatron.mensaje} | Radar: ${analisis.mensajeLog}`,
+      logTone: esAccionable
+        ? 'success'
+        : props.color === 'verde'
+          ? 'warn'
+          : 'info'
     };
   }
 
@@ -543,7 +821,7 @@ class RuletaPredictor {
 }
 
 // ─────────────────────────────────────────────
-// INSTANCIA Y ELEMENTOS DOM
+// INSTANCIA Y REFERENCIAS DEL DOM
 // ─────────────────────────────────────────────
 const predictor = new RuletaPredictor();
 
@@ -563,7 +841,22 @@ const elements = {
   saldoMartingala: document.getElementById('saldoMartingala'),
   valorApuesta: document.getElementById('valorApuesta'),
 
-  // Panel Co-Piloto Antigravity
+  // Monitor Secuencia C-D-E
+  patternStatusBadge: document.getElementById('patternStatusBadge'),
+  patternBadgeText: document.getElementById('patternBadgeText'),
+  stepCardC: document.getElementById('stepCardC'),
+  stepStateC: document.getElementById('stepStateC'),
+  stepChipC: document.getElementById('stepChipC'),
+  stepCardD: document.getElementById('stepCardD'),
+  stepStateD: document.getElementById('stepStateD'),
+  stepChipD: document.getElementById('stepChipD'),
+  stepCardE: document.getElementById('stepCardE'),
+  stepStateE: document.getElementById('stepStateE'),
+  stepChipE: document.getElementById('stepChipE'),
+  patternNextBanner: document.getElementById('patternNextBanner'),
+  patternNextColor: document.getElementById('patternNextColor'),
+
+  // Radar Antigravity
   copilotSignal: document.getElementById('copilotSignal'),
   signalText: document.getElementById('signalText'),
   copilotStreak: document.getElementById('copilotStreak'),
@@ -577,8 +870,9 @@ const elements = {
   copilotTarget: document.getElementById('copilotTarget'),
   copilotDiagnosis: document.getElementById('copilotDiagnosis'),
 
-  // Config pills en el hero
+  // Hero Pills
   heroConfigTipoRuleta: document.getElementById('heroConfigTipoRuleta'),
+  heroConfigPatron: document.getElementById('heroConfigPatron'),
   heroConfigFiltro: document.getElementById('heroConfigFiltro'),
   heroConfigMartingala: document.getElementById('heroConfigMartingala'),
   heroConfigModo: document.getElementById('heroConfigModo'),
@@ -601,7 +895,7 @@ const elements = {
   umbralRacha: document.getElementById('umbralRacha'),
   umbralZScore: document.getElementById('umbralZScore'),
 
-  // Canvas y controles de gráfico
+  // Gráfico de Balance
   balanceCanvas: document.getElementById('balanceCanvas'),
   balanceHigh: document.getElementById('balanceHigh'),
   balanceLow: document.getElementById('balanceLow'),
@@ -634,7 +928,7 @@ const formatCurrency = (val, showPlus = false) => {
 };
 
 // ─────────────────────────────────────────────
-// LOG
+// BITÁCORA DE EVENTOS
 // ─────────────────────────────────────────────
 const logMessage = (text, tone = 'info') => {
   if (!elements.logList) return;
@@ -648,171 +942,361 @@ const logMessage = (text, tone = 'info') => {
   const firstChild = elements.logList.firstElementChild;
   if (firstChild && firstChild.classList.contains('placeholder')) firstChild.remove();
   elements.logList.prepend(card);
-  if (elements.logList.childElementCount > 20) elements.logList.lastElementChild.remove();
+  if (elements.logList.childElementCount > 25) elements.logList.lastElementChild.remove();
 };
 
 // ─────────────────────────────────────────────
-// PLANTILLA DESCARGABLE
+// RENDERIZADO MONITOR SECUENCIA C — D — E
 // ─────────────────────────────────────────────
-const downloadTemplate = () => {
-  const ejemplo = [0, 5, 12, 3, 27, 36, 14, 8, 0, 19, 22, 7, 31, 0, 4];
-  const contenido = `// Predictor de Ruleta 2026 — Plantilla de tiradas
-// Formato: arreglo de números entre 0 y 36
-// Puedes poner varios números separados por comas
-// Ejemplo real abajo, reemplaza con tus propios datos:
+const renderSequenceMonitor = () => {
+  if (!elements.patternStatusBadge) return;
 
-[${ejemplo.join(', ')}]
-`;
-  const blob = new Blob([contenido], { type: 'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'plantilla-tiradas-ruleta.txt';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  logMessage('Plantilla .txt descargada correctamente.', 'success');
-};
+  const activo = predictor.patronActivo;
+  const etapa = predictor.etapaActual;
+  const patron = predictor.patronActual;
+  const origen = predictor.patronNumeroOrigen;
+  const ult = predictor.ultimoPatronResultado;
 
-// ─────────────────────────────────────────────
-// FILE INPUT CUSTOM
-// ─────────────────────────────────────────────
-const handleFileChange = () => {
-  const file = elements.simulationFile?.files?.[0];
-  const nameEl = elements.fileUploadName;
-  if (!nameEl) return;
-  if (file) {
-    nameEl.textContent = `📄 ${file.name}`;
-    nameEl.classList.add('has-file');
+  // 1. Badge de Estado General
+  elements.patternStatusBadge.className = 'pattern-badge';
+  if (!activo) {
+    if (ult?.completo) {
+      elements.patternStatusBadge.classList.add('badge-success');
+      elements.patternBadgeText.textContent = '¡Patrón C-D-E Completado! 🎯';
+    } else if (ult?.acierto === false) {
+      elements.patternStatusBadge.classList.add('badge-failed');
+      elements.patternBadgeText.textContent = `Fallo en Etapa ${ult.etapa || ''} (Reiniciado)`;
+    } else {
+      elements.patternStatusBadge.classList.add('badge-idle');
+      elements.patternBadgeText.textContent = 'En espera de tirada';
+    }
   } else {
-    nameEl.textContent = 'Ningún archivo seleccionado';
-    nameEl.classList.remove('has-file');
+    elements.patternStatusBadge.classList.add('badge-active');
+    if (etapa === 1) {
+      elements.patternBadgeText.textContent = `Patrón #${origen}: Etapa C Superada`;
+    } else if (etapa === 2) {
+      elements.patternStatusBadge.classList.add('badge-trigger');
+      elements.patternBadgeText.textContent = `⚡ ¡ETAPA E ACTIVA! Disparo hacia ${patron[2]?.toUpperCase()}`;
+    } else {
+      elements.patternBadgeText.textContent = `Patrón #${origen} Iniciado`;
+    }
+  }
+
+  // Helper para pintar chips de color
+  const renderChip = (chipEl, stateEl, cardEl, color, stateText, cardClass) => {
+    if (!chipEl || !stateEl || !cardEl) return;
+    cardEl.className = `step-card ${cardClass}`;
+    stateEl.textContent = stateText;
+
+    if (!color) {
+      chipEl.textContent = '—';
+      chipEl.className = 'step-chip';
+      return;
+    }
+    const colorLower = color.toLowerCase();
+    chipEl.textContent = color.toUpperCase();
+    chipEl.className = `step-chip chip-${colorLower}`;
+  };
+
+  // 2. Etapas C, D, E
+  if (!activo) {
+    // Si no está activo pero tenemos el último resultado, mostramos el histórico breve
+    if (ult && patron.length === 3) {
+      renderChip(elements.stepChipC, elements.stepStateC, elements.stepCardC, patron[0], 'Evaluado', 'step-done');
+      renderChip(elements.stepChipD, elements.stepStateD, elements.stepCardD, patron[1], 'Evaluado', 'step-done');
+      renderChip(elements.stepChipE, elements.stepStateE, elements.stepCardE, patron[2], ult.completo ? '¡Acierto! ✅' : 'Fallo ❌', ult.completo ? 'step-winner' : 'step-failed');
+    } else {
+      renderChip(elements.stepChipC, elements.stepStateC, elements.stepCardC, null, 'Inactivo', '');
+      renderChip(elements.stepChipD, elements.stepStateD, elements.stepCardD, null, 'Inactivo', '');
+      renderChip(elements.stepChipE, elements.stepStateE, elements.stepCardE, null, 'Inactivo', '');
+    }
+    elements.patternNextColor.textContent = 'Ninguno — Registra un número para iniciar';
+    elements.patternNextColor.className = 'next-banner__color';
+  } else {
+    // Patrón ACTIVO
+    const c0 = patron[0];
+    const c1 = patron[1];
+    const c2 = patron[2];
+
+    // Etapa C
+    renderChip(elements.stepChipC, elements.stepStateC, elements.stepCardC, c0, 'Superada ✅', 'step-done');
+
+    // Etapa D
+    if (etapa === 1) {
+      renderChip(elements.stepChipD, elements.stepStateD, elements.stepCardD, c1, 'Esperando ⏳', 'step-waiting');
+      renderChip(elements.stepChipE, elements.stepStateE, elements.stepCardE, c2, 'Pendiente', '');
+      elements.patternNextColor.textContent = `Etapa D → Apostar o Validar: ${c1.toUpperCase()}`;
+      elements.patternNextColor.className = `next-banner__color target-${c1.toLowerCase()}`;
+    } else if (etapa === 2) {
+      renderChip(elements.stepChipD, elements.stepStateD, elements.stepCardD, c1, 'Superada ✅', 'step-done');
+      renderChip(elements.stepChipE, elements.stepStateE, elements.stepCardE, c2, '¡DISPARO! 🎯', 'step-action');
+      elements.patternNextColor.textContent = `🎯 ETAPA E → DISPARO DE APUESTA A: ${c2.toUpperCase()}`;
+      elements.patternNextColor.className = `next-banner__color target-${c2.toLowerCase()} target-pulse`;
+    }
   }
 };
 
-const setupDragAndDrop = () => {
-  const area = elements.fileUploadArea;
-  if (!area) return;
+// ─────────────────────────────────────────────
+// RENDERIZADO RADAR ANTIGRAVITY
+// ─────────────────────────────────────────────
+const renderCopilot = (analisis) => {
+  if (!elements.copilotSignal) return;
 
-  area.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    area.classList.add('drag-over');
-  });
-
-  area.addEventListener('dragleave', () => {
-    area.classList.remove('drag-over');
-  });
-
-  area.addEventListener('drop', (e) => {
-    e.preventDefault();
-    area.classList.remove('drag-over');
-    const file = e.dataTransfer?.files?.[0];
-    if (file && file.name.toLowerCase().endsWith('.txt')) {
-      // Asignar al input de archivo vía DataTransfer
-      const dt = new DataTransfer();
-      dt.items.add(file);
-      elements.simulationFile.files = dt.files;
-      handleFileChange();
-    } else {
-      logMessage('Solo se aceptan archivos .txt', 'error');
+  if (!analisis) {
+    elements.copilotSignal.className = 'copilot-signal signal-esperar';
+    if (elements.signalText) elements.signalText.textContent = '[FILTRO DE FRENO: ESPERAR]';
+    if (elements.copilotStreak) elements.copilotStreak.textContent = '0 — Neutro';
+    if (elements.copilotStreakProb) elements.copilotStreakProb.textContent = 'P(ruptura): 0%';
+    if (elements.copilotZScore) elements.copilotZScore.textContent = '0.00σ';
+    if (elements.copilotVarianceStatus) elements.copilotVarianceStatus.textContent = 'Rango estocástico normal';
+    if (elements.copilotRisk) {
+      elements.copilotRisk.textContent = 'BAJO';
+      elements.copilotRisk.className = 'copilot-card__value risk-low';
     }
-  });
-};
-
-// ─────────────────────────────────────────────
-// SIMULACIÓN
-// ─────────────────────────────────────────────
-const parseNumbersFromText = (text) => {
-  if (!text || typeof text !== 'string') return [];
-
-  // 1. Eliminar comentarios multilínea (/* ... */)
-  let clean = text.replace(/\/\*[\s\S]*?\*\//g, ' ');
-
-  // 2. Eliminar comentarios de una línea (// o #), tanto líneas completas como comentarios al final de línea
-  clean = clean
-    .split(/\r?\n/)
-    .map((line) => {
-      const idx = line.search(/(\/\/|#)/);
-      return idx !== -1 ? line.slice(0, idx) : line;
-    })
-    .join('\n');
-
-  // 3. Normalizar guiones entre números (separadores como 10-20 o 10 - 20) por espacios
-  clean = clean.replace(/(?<=\d)\s*-\s*(?=\d)/g, ' ');
-
-  // 4. Si contiene corchetes [...], extraer prioritariamente el arreglo dentro de corchetes
-  const bracketMatches = [...clean.matchAll(/\[([\s\S]*?)\]/g)]
-    .map((m) => m[1])
-    .join(' ');
-
-  const targetText = bracketMatches.trim().length > 0 ? bracketMatches : clean;
-
-  // 5. Capturar números enteros independientes (0 a 36), ignorando negativos o palabras
-  const tokens = targetText.match(/-?\b\d+\b/g) || [];
-
-  return tokens
-    .map((v) => Number(v))
-    .filter((v) => Number.isInteger(v) && v >= 0 && v <= 36);
-};
-
-const simulationSuggestions = [
-  'Carga secuencias largas para afinar el conteo C‑D‑E antes de activar martingala.',
-  'Cada cero reinicia el patrón; usa eso para evaluar qué tan seguido aparece.',
-  'Si ves muchos colores repetidos, analiza si es mejor usar martingala escalonada.'
-];
-
-const renderSimulationSuggestions = () => {
-  if (!elements.suggestionsList) return;
-  elements.suggestionsList.innerHTML = '';
-  simulationSuggestions.forEach((tip) => {
-    const li = document.createElement('li');
-    li.textContent = tip;
-    elements.suggestionsList.appendChild(li);
-  });
-};
-
-const handleSimulationUpload = (event) => {
-  event.preventDefault();
-  const file = elements.simulationFile?.files?.[0];
-  if (!file) {
-    alert('Selecciona un archivo .txt con los datos antes de procesar.');
+    if (elements.copilotFilterStatus) elements.copilotFilterStatus.textContent = 'Filtro de Freno ACTIVO';
+    if (elements.copilotZeroGap) elements.copilotZeroGap.textContent = '0 tiradas';
+    if (elements.copilotZeroRatio) elements.copilotZeroRatio.textContent = 'Obs: 0% | Esp: 2.70%';
+    if (elements.copilotTarget) elements.copilotTarget.textContent = 'Sin objetivo activo';
+    if (elements.copilotDiagnosis) {
+      elements.copilotDiagnosis.textContent =
+        'Esperando tiradas para calibrar la varianza local frente a la tendencia de equilibrio macro.';
+    }
     return;
   }
 
-  const reader = new FileReader();
-  setHeroLevel('Procesando simulación...');
+  // Determinación de estilo de señal
+  const sig = analisis.signal;
+  elements.copilotSignal.className = 'copilot-signal';
 
-  reader.onload = (loadEvent) => {
-    const rawText = loadEvent.target?.result || '';
-    const parsedNumbers = parseNumbersFromText(rawText);
-    if (!parsedNumbers.length) {
-      logMessage('El archivo no contenía números válidos (0‑36).', 'error');
-      setHeroLevel('Nada procesado');
-      return;
+  if (sig === 'CONFLUENCIA_ALTA') {
+    elements.copilotSignal.classList.add('signal-confluencia');
+    elements.signalText.textContent = `[CONFLUENCIA ALTA: ${analisis.target}]`;
+  } else if (sig === 'CONDICION_FAVORABLE') {
+    elements.copilotSignal.classList.add('signal-accion');
+    elements.signalText.textContent = `[CONDICIÓN FAVORABLE: ${analisis.target}]`;
+  } else if (sig === 'ACCION_PATRON_E') {
+    elements.copilotSignal.classList.add('signal-patron-e');
+    elements.signalText.textContent = `[ACCIÓN ETAPA E: ${analisis.target}]`;
+  } else if (sig === 'PRE_ALERTA') {
+    elements.copilotSignal.classList.add('signal-alerta');
+    elements.signalText.textContent = `[PRE-ALERTA: RACHA DE 3]`;
+  } else if (sig === 'SEGUIMIENTO_PATRON') {
+    elements.copilotSignal.classList.add('signal-seguimiento');
+    elements.signalText.textContent = `[SEGUIMIENTO: ETAPA D]`;
+  } else {
+    elements.copilotSignal.classList.add('signal-esperar');
+    elements.signalText.textContent = '[FILTRO DE FRENO: ESPERAR]';
+  }
+
+  // Racha
+  const r = analisis.rachaActiva;
+  if (elements.copilotStreak) {
+    elements.copilotStreak.textContent = r?.texto || '0 — Neutro';
+  }
+  if (elements.copilotStreakProb) {
+    elements.copilotStreakProb.textContent = r ? `P(ruptura): ${r.probRuptura}%` : 'P(ruptura): 0%';
+  }
+
+  // Z-Score
+  const zVal = analisis.zScore?.local ?? 0;
+  if (elements.copilotZScore) {
+    elements.copilotZScore.textContent = `${zVal >= 0 ? '+' : ''}${zVal.toFixed(2)}σ`;
+  }
+  if (elements.copilotVarianceStatus) {
+    elements.copilotVarianceStatus.textContent =
+      Math.abs(zVal) >= 2.0
+        ? 'Desviación Crítica (|Z| ≥ 2.0σ)'
+        : Math.abs(zVal) >= 1.5
+          ? 'Tensión de Varianza Alta'
+          : Math.abs(zVal) >= 1.0
+            ? 'Tensión Moderada'
+            : 'Rango Estocástico Normal';
+  }
+
+  // Riesgo
+  if (elements.copilotRisk) {
+    elements.copilotRisk.textContent = analisis.riesgo || 'BAJO';
+    const riskClass =
+      analisis.riesgo === 'ALTO' || analisis.riesgo === 'MEDIO-ALTO'
+        ? 'risk-high'
+        : analisis.riesgo === 'MEDIO'
+          ? 'risk-med'
+          : 'risk-low';
+    elements.copilotRisk.className = `copilot-card__value ${riskClass}`;
+  }
+
+  if (elements.copilotFilterStatus) {
+    elements.copilotFilterStatus.textContent =
+      sig === 'CONFLUENCIA_ALTA' || sig === 'CONDICION_FAVORABLE' || sig === 'ACCION_PATRON_E'
+        ? 'Dintel SUPERADO (Acción Válida)'
+        : sig === 'PRE_ALERTA'
+          ? 'Precalentando Dintel'
+          : 'Filtro de Freno ACTIVO';
+  }
+
+  // Factor Cero
+  const c = analisis.ceroStats;
+  if (c) {
+    if (elements.copilotZeroGap) {
+      elements.copilotZeroGap.textContent = `${c.gap} tiradas sin caer`;
+      if (c.gap >= 35) {
+        elements.copilotZeroGap.classList.add('text-warn');
+      } else {
+        elements.copilotZeroGap.classList.remove('text-warn');
+      }
     }
+    if (elements.copilotZeroRatio) {
+      elements.copilotZeroRatio.textContent = `Obs: ${c.ratio}% | Esp: 2.70% (${c.count} ceros)`;
+    }
+  }
 
-    parsedNumbers.forEach((numero) => predictor.agregarNumero(numero));
-    saveState();
-    refreshUI();
-    logMessage(`Simulación cargada: ${parsedNumbers.length} números procesados.`, 'success');
-    setHeroLevel('Simulación aplicada');
-
-    // Limpiar input
-    elements.simulationFile.value = '';
-    handleFileChange();
-  };
-
-  reader.onerror = () => {
-    logMessage('No se pudo leer el archivo seleccionado.', 'error');
-    setHeroLevel('Error leyendo archivo');
-  };
-
-  reader.readAsText(file);
+  // Objetivo y Diagnóstico
+  if (elements.copilotTarget) {
+    elements.copilotTarget.textContent = analisis.target
+      ? `Objetivo: Entrada a ${analisis.target}`
+      : 'Sin objetivo (Preservación de capital)';
+  }
+  if (elements.copilotDiagnosis) {
+    elements.copilotDiagnosis.textContent = analisis.diagnostico || '';
+  }
 };
 
 // ─────────────────────────────────────────────
-// CHART
+// RENDER CONFIG → PILLS DEL HERO
+// ─────────────────────────────────────────────
+const renderConfig = (config) => {
+  if (!config) return;
+
+  if (elements.heroConfigTipoRuleta) elements.heroConfigTipoRuleta.textContent = config.tipoRuleta;
+  if (elements.heroConfigPatron) elements.heroConfigPatron.textContent = 'Secuencia C-D-E';
+  if (elements.heroConfigFiltro) {
+    elements.heroConfigFiltro.textContent = `Racha ≥ ${config.umbralRacha || 4} | Z ≥ ${config.umbralZScore || 1.5}σ`;
+  }
+  if (elements.heroConfigMartingala) {
+    elements.heroConfigMartingala.textContent = config.usarMartingala ? 'Activada ✅' : 'Desactivada';
+  }
+  if (elements.heroConfigModo) {
+    elements.heroConfigModo.textContent = config.usarMartingala
+      ? (config.modoMartingala === 2 ? 'Escalonada (Max 4)' : 'Plana condicional')
+      : 'Filtro Condicional';
+  }
+  if (elements.heroConfigApuesta) {
+    elements.heroConfigApuesta.textContent = config.usarMartingala
+      ? formatCurrency(config.valorApuestaBase)
+      : 'Inactiva';
+  }
+
+  // Modal
+  if (elements.tipoRuleta) elements.tipoRuleta.value = config.tipoRuleta;
+  if (elements.umbralRacha) elements.umbralRacha.value = config.umbralRacha || 4;
+  if (elements.umbralZScore) elements.umbralZScore.value = config.umbralZScore || 1.5;
+  if (elements.usarMartingala) elements.usarMartingala.checked = Boolean(config.usarMartingala);
+  if (elements.modoMartingala) elements.modoMartingala.value = config.modoMartingala;
+  if (elements.valorApuestaBase) elements.valorApuestaBase.value = config.valorApuestaBase;
+  toggleMartingalaFields(config.usarMartingala);
+};
+
+const toggleMartingalaFields = (show) => {
+  if (elements.martingalaDetails) elements.martingalaDetails.style.display = show ? 'flex' : 'none';
+};
+
+// ─────────────────────────────────────────────
+// RENDER STATS, HISTORIAL, BALANCE
+// ─────────────────────────────────────────────
+const renderStats = (stats) => {
+  if (!stats) return;
+  const { colores, total, totalHistorial, topNumeros, saldoMartingala: saldo, config } = stats;
+  elements.totalTiradas.textContent = total;
+  elements.saldoMartingala.textContent = formatCurrency(saldo);
+  elements.valorApuesta.textContent = formatCurrency(config.valorApuestaBase);
+
+  const sampleTotal = totalHistorial || total || 0;
+  const percent = (valor) => (sampleTotal ? Math.round((valor / sampleTotal) * 100) : 0);
+  elements.barRojo.style.width   = `${percent(colores.rojo)}%`;
+  elements.barNegro.style.width  = `${percent(colores.negro)}%`;
+  elements.barVerde.style.width  = `${percent(colores.verde)}%`;
+  elements.labelRojo.textContent  = `${percent(colores.rojo)}%`;
+  elements.labelNegro.textContent = `${percent(colores.negro)}%`;
+  elements.labelVerde.textContent = `${percent(colores.verde)}%`;
+
+  elements.topNumbersList.innerHTML = '';
+  if (!topNumeros.length) {
+    elements.topNumbersList.innerHTML = '<li class="placeholder">Sin tiradas suficientes aún.</li>';
+  } else {
+    topNumeros.slice(0, 5).forEach((item) => {
+      const li = document.createElement('li');
+      li.textContent = `#${item.numero} (${item.veces} veces)`;
+      elements.topNumbersList.appendChild(li);
+    });
+  }
+
+  renderConfig(config);
+};
+
+const renderHistory = (historial) => {
+  elements.historyList.innerHTML = '';
+  if (!historial.length) {
+    elements.historyList.innerHTML = '<li class="placeholder">Aún no hay tiradas registradas.</li>';
+    return;
+  }
+
+  const latest = [...historial].reverse().slice(0, 15);
+  latest.forEach((item) => {
+    const li = document.createElement('li');
+    li.className = 'history-item';
+    const date = item.timestamp ? new Date(item.timestamp) : new Date();
+    const time = Number.isNaN(date.getTime()) ? '—' : date.toLocaleTimeString('es-CO');
+    li.innerHTML = `
+      <div>
+        <strong>#${item.numero}</strong>
+        <span>${time}</span>
+      </div>
+      <span class="history-color ${item.color}">${item.color}</span>
+    `;
+    elements.historyList.appendChild(li);
+  });
+};
+
+const updateLastSync = () => {
+  elements.lastSync.textContent = `Última sincronización: ${new Date().toLocaleTimeString('es-CO')}`;
+};
+
+const setHeroLevel = (text) => {
+  elements.heroLevel.textContent = text;
+};
+
+// ─────────────────────────────────────────────
+// PERSISTENCIA LOCALSTORAGE
+// ─────────────────────────────────────────────
+const saveState = () => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(predictor.serializeState()));
+  } catch (error) {
+    console.warn('Almacenamiento local saturado; guardando estado compacto', error);
+    try {
+      const compactState = predictor.serializeState();
+      compactState.historialNumeros = compactState.historialNumeros.slice(-250);
+      compactState.balanceTimeline = compactState.balanceTimeline.slice(-250);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(compactState));
+    } catch {
+      // Ignorar si aún excede
+    }
+  }
+};
+
+const loadState = () => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    predictor.loadState(JSON.parse(raw));
+  } catch (error) {
+    console.warn('Estado local no válido, iniciando estado fresco', error);
+    predictor.resetState();
+  }
+};
+
+// ─────────────────────────────────────────────
+// GRÁFICO CANDLESTICK DE CAPITAL (BALANCE)
 // ─────────────────────────────────────────────
 const chartState = {
   windowSize: Number(elements.zoomRange?.value) || 60,
@@ -828,13 +1312,13 @@ const updateZoomLabel = (value) => {
 const updateHoverInfo = (entry, absoluteIndex = null) => {
   if (!elements.hoverLaunch || !elements.hoverSaldo) return;
   if (!entry) {
-    elements.hoverLaunch.textContent = 'Lanzamiento: —';
-    elements.hoverSaldo.textContent = 'Saldo actual: —';
+    elements.hoverLaunch.textContent = 'Tirada: —';
+    elements.hoverSaldo.textContent = 'Saldo: —';
     return;
   }
   const tiradaNum = entry.tiradaNumero ?? absoluteIndex ?? '—';
-  elements.hoverLaunch.textContent = `Lanzamiento: #${tiradaNum}`;
-  elements.hoverSaldo.textContent = `Saldo actual: ${formatCurrency(entry.close)}`;
+  elements.hoverLaunch.textContent = `Tirada: #${tiradaNum}`;
+  elements.hoverSaldo.textContent = `Saldo: ${formatCurrency(entry.close)}`;
 };
 
 const handleZoomChange = () => {
@@ -854,7 +1338,11 @@ const handleChartHover = (event) => {
   const x = event.clientX - rect.left;
   const { padLeft, chartWidth, timelineLength } = render;
 
-  if (!timelineLength || chartWidth <= 0) { chartState.hoverIndex = null; updateHoverInfo(null); return; }
+  if (!timelineLength || chartWidth <= 0) {
+    chartState.hoverIndex = null;
+    updateHoverInfo(null);
+    return;
+  }
 
   const relX  = Math.max(0, Math.min(chartWidth, x - padLeft));
   const index = timelineLength > 1
@@ -882,7 +1370,7 @@ const updateBalanceSummary = () => {
   if (elements.balanceCurrent) {
     const current = predictor.saldoMartingala;
     elements.balanceCurrent.textContent = formatCurrency(current);
-    elements.balanceCurrent.style.color = current >= 0 ? 'rgb(34,197,94)' : 'rgb(239,68,68)';
+    elements.balanceCurrent.style.color = current >= 0 ? '#ccff00' : '#ef4444';
   }
 };
 
@@ -906,10 +1394,9 @@ const renderBalanceChart = () => {
   ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, width, height);
 
-  // ── Márgenes ──────────────────────────────────────────────────
-  const PAD_LEFT   = 58;
-  const PAD_RIGHT  = 16;
-  const PAD_TOP    = 38;
+  const PAD_LEFT   = 60;
+  const PAD_RIGHT  = 20;
+  const PAD_TOP    = 34;
   const PAD_BOTTOM = 36;
   const chartWidth  = width  - PAD_LEFT - PAD_RIGHT;
   const chartHeight = height - PAD_TOP  - PAD_BOTTOM;
@@ -924,513 +1411,133 @@ const renderBalanceChart = () => {
   chartState.lastRender = {
     width, height, chartWidth, chartHeight,
     padLeft: PAD_LEFT, padTop: PAD_TOP, padBottom: PAD_BOTTOM,
-    padding: PAD_LEFT,        // compatibilidad con handleChartHover
     timelineLength: visibleLength
   };
-  if (visibleLength > 0) {
-    chartState.hoverIndex = chartState.hoverIndex === null
-      ? null
-      : Math.min(Math.max(chartState.hoverIndex, 0), visibleLength - 1);
-  } else {
-    chartState.hoverIndex = null;
-  }
-  updateZoomLabel(chartState.windowSize);
 
-  // ── Fondo ─────────────────────────────────────────────────────
-  ctx.fillStyle = 'rgba(2, 2, 10, 0.96)';
+  // Fondo estilizado Nike Dark Obsidian
+  ctx.fillStyle = '#08080c';
   ctx.fillRect(0, 0, width, height);
 
   if (!visibleLength) {
-    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.fillStyle = '#71717a';
     ctx.font = '13px "Outfit", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('Registra tiradas para ver el saldo en acción', width / 2, height / 2);
+    ctx.fillText('Registra tiradas para ver la curva de capital', width / 2, height / 2);
     return;
   }
 
-  // ── Escala ────────────────────────────────────────────────────
-  const closes = visibleTimeline.map(e => e.close);
-  const maxVal = Math.max(...closes, 0);
-  const minVal = Math.min(...closes, 0);
-  // Añadir 8% de margen arriba y abajo para que los puntos no queden pegados al borde
-  const padding8 = (maxVal - minVal) * 0.08 || 0.5;
-  const domainMax = maxVal + padding8;
-  const domainMin = minVal - padding8;
-  const valueRange = Math.max(0.01, domainMax - domainMin);
-
-  const toY = (val) => PAD_TOP + chartHeight - ((val - domainMin) / valueRange) * chartHeight;
-  const toX = (i)   => PAD_LEFT + (visibleLength > 1 ? (i / (visibleLength - 1)) * chartWidth : chartWidth / 2);
-
-  const yZero = toY(0);
-  const currentBalance = predictor.saldoMartingala;
-
-  // ── Grid horizontal ───────────────────────────────────────────
-  const numGridLines = 5;
-  for (let i = 0; i <= numGridLines; i++) {
-    const val = domainMin + (valueRange / numGridLines) * i;
-    const y   = toY(val);
-    const isZeroLine = Math.abs(val) < valueRange / numGridLines / 2;
-
-    ctx.strokeStyle = isZeroLine ? 'rgba(255,255,255,0)' : 'rgba(255,255,255,0.06)';
-    ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(PAD_LEFT, y); ctx.lineTo(width - PAD_RIGHT, y); ctx.stroke();
-
-    // Etiquetas del eje Y
-    const roundedVal = Math.round(val);
-    const isPos = roundedVal >= 0;
-    ctx.fillStyle = isZeroLine ? 'rgba(255,255,255,0.75)' : 'rgba(184, 196, 240, 0.6)';
-    ctx.font = `${isZeroLine ? 'bold ' : ''}10px "JetBrains Mono", monospace`;
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(
-      roundedVal === 0 ? '$0' : `${isPos ? '+' : '-'}$${Math.abs(roundedVal)}`,
-      PAD_LEFT - 5, y
-    );
-  }
-
-  // ── Línea de cero ─────────────────────────────────────────────
-  const zeroColor = currentBalance >= 0 ? 'rgba(0, 230, 118, 0.85)' : 'rgba(255, 26, 78, 0.85)';
-  ctx.save();
-  ctx.strokeStyle = zeroColor;
-  ctx.lineWidth   = 1.5;
-  ctx.setLineDash([6, 5]);
-  ctx.beginPath(); ctx.moveTo(PAD_LEFT, yZero); ctx.lineTo(width - PAD_RIGHT, yZero); ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.restore();
-
-  // ── Área de relleno (verde arriba, rojo abajo) ────────────────
-  const areaPath = new Path2D();
-  areaPath.moveTo(toX(0), yZero);
-  visibleTimeline.forEach((e, i) => areaPath.lineTo(toX(i), toY(e.close)));
-  areaPath.lineTo(toX(visibleLength - 1), yZero);
-  areaPath.closePath();
-
-  // Zona positiva (clip arriba del cero)
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(PAD_LEFT, PAD_TOP, chartWidth, Math.max(0, yZero - PAD_TOP));
-  ctx.clip();
-  const gradPos = ctx.createLinearGradient(0, PAD_TOP, 0, yZero);
-  gradPos.addColorStop(0, 'rgba(34, 197, 94, 0.15)');
-  gradPos.addColorStop(1, 'rgba(34, 197, 94, 0.01)');
-  ctx.fillStyle = gradPos;
-  ctx.fill(areaPath);
-  ctx.restore();
-
-  // Zona negativa (clip abajo del cero)
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(PAD_LEFT, yZero, chartWidth, Math.max(0, (PAD_TOP + chartHeight) - yZero));
-  ctx.clip();
-  const gradNeg = ctx.createLinearGradient(0, yZero, 0, PAD_TOP + chartHeight);
-  gradNeg.addColorStop(0, 'rgba(239, 68, 68, 0.01)');
-  gradNeg.addColorStop(1, 'rgba(239, 68, 68, 0.15)');
-  ctx.fillStyle = gradNeg;
-  ctx.fill(areaPath);
-  ctx.restore();
-
-  // ── Línea de equity (Blanco Stark Minimalista) ──────────────────
-  ctx.beginPath();
-  visibleTimeline.forEach((e, i) => {
-    const x = toX(i), y = toY(e.close);
-    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  // Rango de escala
+  let minVal = Infinity;
+  let maxVal = -Infinity;
+  visibleTimeline.forEach((t) => {
+    if (t.low < minVal) minVal = t.low;
+    if (t.high > maxVal) maxVal = t.high;
   });
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth   = 2;
-  ctx.lineJoin    = 'round';
-  ctx.stroke();
+  if (minVal === Infinity) { minVal = 0; maxVal = 1000; }
+  if (minVal > 0) minVal = 0;
+  if (maxVal < 0) maxVal = 0;
+  if (minVal === maxVal) { minVal -= 1000; maxVal += 1000; }
 
-  // ── Puntos de eventos (Win / Loss) ─────────────────────────────
-  visibleTimeline.forEach((entry, i) => {
-    if (!entry.tipo) return;
-    const x     = toX(i);
-    const y     = toY(entry.close);
-    const isWin = entry.tipo === 'acierto';
-    const dotColor = isWin ? '#22c55e' : '#ef4444';
+  const margin = (maxVal - minVal) * 0.12;
+  minVal -= margin;
+  maxVal += margin;
+  const range = maxVal - minVal;
 
-    // Círculo nítido sin halos exagerados
+  const getY = (val) => PAD_TOP + chartHeight - ((val - minVal) / range) * chartHeight;
+  const getX = (idx) => visibleLength === 1
+    ? PAD_LEFT + chartWidth / 2
+    : PAD_LEFT + (idx / (visibleLength - 1)) * chartWidth;
+
+  // Líneas de referencia horizontal (Grid)
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+  ctx.lineWidth = 1;
+  const steps = 4;
+  for (let s = 0; s <= steps; s++) {
+    const val = minVal + (s / steps) * range;
+    const y = getY(val);
     ctx.beginPath();
-    ctx.arc(x, y, 4, 0, Math.PI * 2);
-    ctx.fillStyle   = dotColor;
-    ctx.fill();
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth   = 1.5;
+    ctx.moveTo(PAD_LEFT, y);
+    ctx.lineTo(width - PAD_RIGHT, y);
     ctx.stroke();
 
-    // Delta encima del punto
-    const diff  = entry.close - entry.open;
-    const label = (diff >= 0 ? '+' : '') + '$' + Math.abs(Math.round(diff));
-    ctx.fillStyle     = isWin ? '#4ade80' : '#f87171';
-    ctx.font          = 'bold 9px "JetBrains Mono", monospace';
-    ctx.textAlign     = 'center';
-    ctx.textBaseline  = 'bottom';
-    ctx.fillText(label, x, y - 7);
-  });
-
-  // ── Eje X ─────────────────────────────────────────────────────
-  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-  ctx.lineWidth   = 1;
-  ctx.beginPath();
-  ctx.moveTo(PAD_LEFT, PAD_TOP + chartHeight);
-  ctx.lineTo(width - PAD_RIGHT, PAD_TOP + chartHeight);
-  ctx.stroke();
-
-  const timeTicks = Math.min(visibleLength - 1, 8);
-  for (let i = 0; i <= timeTicks; i++) {
-    const idx = timeTicks === 0 ? 0 : Math.round((visibleLength - 1) * (i / timeTicks));
-    const x   = toX(idx);
-    const entry = visibleTimeline[idx];
-    const tiradaNum = entry?.tiradaNumero ?? (startIndex + idx + 1);
-    ctx.fillStyle    = 'rgba(203,213,255,0.6)';
-    ctx.font         = '10px "Space Grotesk", sans-serif';
-    ctx.textAlign    = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(tiradaNum.toString(), x, PAD_TOP + chartHeight + 5);
+    ctx.fillStyle = '#71717a';
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(formatCurrency(val), PAD_LEFT - 8, y);
   }
-  ctx.fillStyle    = 'rgba(203,213,255,0.35)';
-  ctx.font         = '10px "Space Grotesk", sans-serif';
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'top';
-  ctx.fillText('Tirada #', width / 2, PAD_TOP + chartHeight + 20);
 
-  // ── Barra de stats (arriba del canvas) ───────────────────────
-  const netChange = closes[closes.length - 1] - closes[0];
-  const peak   = Math.max(...closes);
-  const trough = Math.min(...closes);
-  const isNetPos = netChange >= 0;
-
-  ctx.font         = 'bold 10px "Space Grotesk", sans-serif';
-  ctx.textBaseline = 'middle';
-  const statsY = PAD_TOP / 2;
-
-  ctx.fillStyle = isNetPos ? '#86efac' : '#fca5a5';
-  ctx.textAlign = 'left';
-  ctx.fillText(
-    `${isNetPos ? '▲' : '▼'} Neto: ${isNetPos ? '+' : '-'}$${Math.abs(Math.round(netChange))}`,
-    PAD_LEFT, statsY
-  );
-
-  ctx.fillStyle = '#86efac';
-  ctx.textAlign = 'center';
-  ctx.fillText(`Pico: +$${Math.round(peak)}`, width / 2 - 40, statsY);
-
-  ctx.fillStyle = '#fca5a5';
-  ctx.textAlign = 'center';
-  ctx.fillText(`Valle: -$${Math.abs(Math.round(trough))}`, width / 2 + 40, statsY);
-
-  ctx.fillStyle = currentBalance >= 0 ? '#86efac' : '#fca5a5';
-  ctx.textAlign = 'right';
-  ctx.fillText(
-    `Actual: ${currentBalance >= 0 ? '+' : '-'}$${Math.abs(Math.round(currentBalance))}`,
-    width - PAD_RIGHT, statsY
-  );
-
-  // ── Crosshair + tooltip ───────────────────────────────────────
-  if (chartState.hoverIndex !== null && chartState.hoverIndex < visibleLength) {
-    const hi    = chartState.hoverIndex;
-    const hx    = toX(hi);
-    const hEntry = visibleTimeline[hi];
-    const hy    = toY(hEntry.close);
-    const diff  = hEntry.close - hEntry.open;
-    const isWin = diff > 0;
-
-    // Líneas de crosshair
-    ctx.save();
-    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-    ctx.lineWidth   = 1;
+  // Línea de cero (Punto de equilibrio)
+  if (minVal <= 0 && maxVal >= 0) {
+    const yZero = getY(0);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
     ctx.setLineDash([4, 4]);
-    ctx.beginPath(); ctx.moveTo(hx, PAD_TOP); ctx.lineTo(hx, PAD_TOP + chartHeight); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(PAD_LEFT, hy); ctx.lineTo(width - PAD_RIGHT, hy); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.restore();
-
-    // Punto de hover
-    ctx.beginPath(); ctx.arc(hx, hy, 6, 0, Math.PI * 2);
-    ctx.fillStyle   = hEntry.close >= 0 ? '#22c55e' : '#ef4444';
-    ctx.fill();
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
-
-    // Tooltip
-    const TW = 148, TH = 78;
-    const tx = hx > width * 0.6 ? hx - TW - 10 : hx + 12;
-    const ty = Math.min(Math.max(hy - TH / 2, PAD_TOP + 4), PAD_TOP + chartHeight - TH - 4);
-
-    ctx.fillStyle   = 'rgba(5,5,5,0.94)';
-    ctx.strokeStyle = hEntry.close >= 0 ? 'rgba(34,197,94,0.7)' : 'rgba(239,68,68,0.7)';
-    ctx.lineWidth   = 1.2;
     ctx.beginPath();
-    if (typeof ctx.roundRect === 'function') {
-      ctx.roundRect(tx, ty, TW, TH, 8);
-    } else {
-      ctx.rect(tx, ty, TW, TH);
-    }
-    ctx.fill(); ctx.stroke();
-
-    ctx.textAlign    = 'left';
-    ctx.textBaseline = 'top';
-
-    ctx.fillStyle = 'rgba(203,213,255,0.6)';
-    ctx.font      = '10px "Space Grotesk", sans-serif';
-    const tiradaNum = hEntry?.tiradaNumero ?? (startIndex + hi + 1);
-    ctx.fillText(`Tirada #${tiradaNum}`, tx + 10, ty + 10);
-
-    ctx.fillStyle = hEntry.close >= 0 ? '#86efac' : '#fca5a5';
-    ctx.font      = 'bold 16px "Space Grotesk", sans-serif';
-    ctx.fillText(
-      `${hEntry.close >= 0 ? '+' : '-'}$${Math.abs(Math.round(hEntry.close))}`,
-      tx + 10, ty + 26
-    );
-
-    ctx.fillStyle = diff === 0 ? 'rgba(255,255,255,0.4)' : (isWin ? '#86efac' : '#fca5a5');
-    ctx.font      = '11px "Space Grotesk", sans-serif';
-    ctx.fillText(
-      diff === 0
-        ? '— Sin cambio'
-        : `${isWin ? '▲ +' : '▼ -'}$${Math.abs(Math.round(diff))} vs anterior`,
-      tx + 10, ty + 52
-    );
-  }
-};
-
-
-// ─────────────────────────────────────────────
-// ESTADO Y PERSISTENCIA
-// ─────────────────────────────────────────────
-const updateLastSync = () => {
-  elements.lastSync.textContent = `Última actualización: ${new Date().toLocaleTimeString('es-CO')}`;
-};
-
-const setHeroLevel = (text) => {
-  elements.heroLevel.textContent = text;
-};
-
-const saveState = () => {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(predictor.serializeState()));
-  } catch (error) {
-    console.warn('No se pudo guardar el estado localmente', error);
-    try {
-      const compactState = predictor.serializeState();
-      compactState.historialNumeros = compactState.historialNumeros.slice(-300);
-      compactState.balanceTimeline = compactState.balanceTimeline.slice(-300);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(compactState));
-    } catch {
-      // Ignorar si aún excede cuota
-    }
-  }
-};
-
-const loadState = () => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
-    predictor.loadState(JSON.parse(raw));
-  } catch (error) {
-    console.warn('Estado local corrupto, se iniciará desde cero', error);
-    predictor.resetState();
-  }
-};
-
-// ─────────────────────────────────────────────
-// RENDER CO-PILOTO ANTIGRAVITY
-// ─────────────────────────────────────────────
-const renderCopilot = (analisis) => {
-  if (!elements.copilotSignal) return;
-
-  if (!analisis) {
-    elements.copilotSignal.className = 'copilot-signal signal-esperar';
-    if (elements.signalText) elements.signalText.textContent = '[ESPERAR]';
-    if (elements.copilotStreak) elements.copilotStreak.textContent = '0 — Neutro';
-    if (elements.copilotStreakProb) elements.copilotStreakProb.textContent = 'P(teórica): 100%';
-    if (elements.copilotZScore) elements.copilotZScore.textContent = '0.00σ';
-    if (elements.copilotVarianceStatus) elements.copilotVarianceStatus.textContent = 'Rango estocástico normal';
-    if (elements.copilotRisk) {
-      elements.copilotRisk.textContent = 'BAJO';
-      elements.copilotRisk.className = 'copilot-card__value risk-low';
-    }
-    if (elements.copilotFilterStatus) elements.copilotFilterStatus.textContent = 'Filtro de freno ACTIVO';
-    if (elements.copilotZeroGap) elements.copilotZeroGap.textContent = '0 tiradas';
-    if (elements.copilotZeroRatio) elements.copilotZeroRatio.textContent = 'Obs: 0% | Esp: 2.70%';
-    if (elements.copilotTarget) elements.copilotTarget.textContent = 'Sin objetivo activo';
-    if (elements.copilotDiagnosis) {
-      elements.copilotDiagnosis.textContent =
-        'Esperando tiradas para calibrar la varianza local frente a la tendencia de equilibrio macro.';
-    }
-    return;
+    ctx.moveTo(PAD_LEFT, yZero);
+    ctx.lineTo(width - PAD_RIGHT, yZero);
+    ctx.stroke();
+    ctx.setLineDash([]);
   }
 
-  // Señal del Filtro de Freno
-  const esFavorable = analisis.signal === 'CONDICION_FAVORABLE';
-  elements.copilotSignal.className = `copilot-signal ${esFavorable ? 'signal-accion' : 'signal-esperar'}`;
-  if (elements.signalText) {
-    elements.signalText.textContent = esFavorable
-      ? '[CONDICIÓN FAVORABLE PARA ACCIÓN]'
-      : '[ESPERAR]';
-  }
+  // Dibujar curva / velas
+  const candleW = Math.max(3, Math.min(14, (chartWidth / visibleLength) * 0.6));
 
-  // Racha
-  const r = analisis.rachaActiva;
-  if (elements.copilotStreak) {
-    elements.copilotStreak.textContent = r?.texto || '0 — Neutro';
-  }
-  if (elements.copilotStreakProb) {
-    elements.copilotStreakProb.textContent = r ? `P(teórica): ${r.probabilidad}` : 'P(teórica): 100%';
-  }
+  visibleTimeline.forEach((t, idx) => {
+    const x = getX(idx);
+    const yOpen = getY(t.open);
+    const yClose = getY(t.close);
+    const yHigh = getY(t.high);
+    const yLow = getY(t.low);
 
-  // Z-Score
-  const zVal = analisis.zScore?.local ?? 0;
-  if (elements.copilotZScore) {
-    elements.copilotZScore.textContent = `${zVal >= 0 ? '+' : ''}${zVal.toFixed(2)}σ`;
-  }
-  if (elements.copilotVarianceStatus) {
-    elements.copilotVarianceStatus.textContent =
-      Math.abs(zVal) >= 2.0
-        ? 'Anomalía estadística (|Z| ≥ 2.0σ)'
-        : Math.abs(zVal) >= 1.5
-          ? 'Tensión de varianza moderada'
-          : 'Rango estocástico normal';
-  }
+    const isUp = t.close >= t.open;
+    const color = isUp ? '#ccff00' : '#ef4444';
 
-  // Riesgo
-  if (elements.copilotRisk) {
-    elements.copilotRisk.textContent = analisis.riesgo || 'BAJO';
-    const riskClass =
-      analisis.riesgo === 'CRÍTICO'
-        ? 'risk-critical'
-        : analisis.riesgo === 'ALTO'
-          ? 'risk-high'
-          : analisis.riesgo === 'MEDIO'
-            ? 'risk-med'
-            : 'risk-low';
-    elements.copilotRisk.className = `copilot-card__value ${riskClass}`;
-  }
+    // Mecha
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x, yHigh);
+    ctx.lineTo(x, yLow);
+    ctx.stroke();
 
-  if (elements.copilotFilterStatus) {
-    elements.copilotFilterStatus.textContent = esFavorable
-      ? 'Filtro SUPERADO (Entrada válida)'
-      : 'Filtro de freno ACTIVO';
-  }
-
-  // Cero (0)
-  const c = analisis.ceroStats;
-  if (c) {
-    if (elements.copilotZeroGap) elements.copilotZeroGap.textContent = `${c.gap} tiradas sin caer`;
-    if (elements.copilotZeroRatio) {
-      elements.copilotZeroRatio.textContent = `Obs: ${c.ratio}% | Esp: 2.70% (${c.count} veces)`;
-    }
-  }
-
-  // Objetivo y Diagnóstico
-  if (elements.copilotTarget) {
-    elements.copilotTarget.textContent = analisis.target
-      ? `Objetivo: Buscar reversión a ${analisis.target}`
-      : 'Sin objetivo (Preservación de capital)';
-  }
-  if (elements.copilotDiagnosis) {
-    elements.copilotDiagnosis.textContent = analisis.diagnostico || '';
-  }
-};
-
-// ─────────────────────────────────────────────
-// RENDER CONFIG → PILLS DEL HERO
-// ─────────────────────────────────────────────
-const renderConfig = (config) => {
-  if (!config) return;
-
-  // Pills del hero
-  if (elements.heroConfigTipoRuleta) elements.heroConfigTipoRuleta.textContent = config.tipoRuleta;
-  if (elements.heroConfigFiltro) {
-    elements.heroConfigFiltro.textContent = `Racha ≥ ${config.umbralRacha || 6} | Z ≥ ${config.umbralZScore || 2.0}σ`;
-  }
-  if (elements.heroConfigMartingala) {
-    elements.heroConfigMartingala.textContent = config.usarMartingala ? 'Activada ✅' : 'Desactivada';
-  }
-  if (elements.heroConfigModo) {
-    elements.heroConfigModo.textContent = config.usarMartingala
-      ? (config.modoMartingala === 2 ? 'Escalonada (Max 4)' : 'Plana condicional')
-      : 'Filtro Condicional';
-  }
-  if (elements.heroConfigApuesta) {
-    elements.heroConfigApuesta.textContent = config.usarMartingala
-      ? formatCurrency(config.valorApuestaBase)
-      : 'Inactivo';
-  }
-
-  // Sincronizar valores en el form del modal
-  if (elements.tipoRuleta) elements.tipoRuleta.value = config.tipoRuleta;
-  if (elements.umbralRacha) elements.umbralRacha.value = config.umbralRacha || 6;
-  if (elements.umbralZScore) elements.umbralZScore.value = config.umbralZScore || 2.0;
-  if (elements.usarMartingala) elements.usarMartingala.checked = Boolean(config.usarMartingala);
-  if (elements.modoMartingala) elements.modoMartingala.value = config.modoMartingala;
-  if (elements.valorApuestaBase) elements.valorApuestaBase.value = config.valorApuestaBase;
-  toggleMartingalaFields(config.usarMartingala);
-};
-
-const toggleMartingalaFields = (show) => {
-  if (elements.martingalaDetails) elements.martingalaDetails.style.display = show ? 'flex' : 'none';
-};
-
-// ─────────────────────────────────────────────
-// RENDER STATS, HISTORY, UI
-// ─────────────────────────────────────────────
-const renderStats = (stats) => {
-  if (!stats) return;
-  const { colores, total, totalHistorial, topNumeros, saldoMartingala: saldo, config } = stats;
-  elements.totalTiradas.textContent = total;
-  elements.saldoMartingala.textContent = formatCurrency(saldo);
-  elements.valorApuesta.textContent = formatCurrency(config.valorApuestaBase);
-
-  const sampleTotal = totalHistorial || total || 0;
-  const percent = (valor) => (sampleTotal ? Math.round((valor / sampleTotal) * 100) : 0);
-  elements.barRojo.style.width   = `${percent(colores.rojo)}%`;
-  elements.barNegro.style.width  = `${percent(colores.negro)}%`;
-  elements.barVerde.style.width  = `${percent(colores.verde)}%`;
-  elements.labelRojo.textContent  = `${percent(colores.rojo)}%`;
-  elements.labelNegro.textContent = `${percent(colores.negro)}%`;
-  elements.labelVerde.textContent = `${percent(colores.verde)}%`;
-
-  elements.topNumbersList.innerHTML = '';
-  if (!topNumeros.length) {
-    elements.topNumbersList.innerHTML = '<li class="placeholder">Sin números populares aún.</li>';
-  } else {
-    topNumeros.slice(0, 5).forEach((item) => {
-      const li = document.createElement('li');
-      li.textContent = `#${item.numero} (${item.veces} veces)`;
-      elements.topNumbersList.appendChild(li);
-    });
-  }
-
-  renderConfig(config);
-};
-
-const renderHistory = (historial) => {
-  elements.historyList.innerHTML = '';
-  if (!historial.length) {
-    elements.historyList.innerHTML = '<li class="placeholder">Aún no hay tiradas.</li>';
-    return;
-  }
-
-  const latest = [...historial].reverse().slice(0, 15);
-  latest.forEach((item) => {
-    const li = document.createElement('li');
-    li.className = 'history-item';
-    const date = item.timestamp ? new Date(item.timestamp) : new Date();
-    const time = Number.isNaN(date.getTime()) ? '—' : date.toLocaleTimeString('es-CO');
-    li.innerHTML = `
-      <div>
-        <strong>#${item.numero}</strong>
-        <span>${time}</span>
-      </div>
-      <span class="history-color ${item.color}">${item.color}</span>
-    `;
-    elements.historyList.appendChild(li);
+    // Cuerpo
+    const bodyTop = Math.min(yOpen, yClose);
+    const bodyHeight = Math.max(3, Math.abs(yClose - yOpen));
+    ctx.fillStyle = isUp ? '#ccff00' : '#ef4444';
+    ctx.fillRect(x - candleW / 2, bodyTop, candleW, bodyHeight);
   });
+
+  // Highlight de hover
+  if (chartState.hoverIndex !== null && visibleTimeline[chartState.hoverIndex]) {
+    const hIdx = chartState.hoverIndex;
+    const hEntry = visibleTimeline[hIdx];
+    const hX = getX(hIdx);
+    const hY = getY(hEntry.close);
+
+    ctx.strokeStyle = 'rgba(204, 255, 0, 0.4)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 2]);
+    ctx.beginPath();
+    ctx.moveTo(hX, PAD_TOP);
+    ctx.lineTo(hX, height - PAD_BOTTOM);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = '#ccff00';
+    ctx.beginPath();
+    ctx.arc(hX, hY, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
 };
 
+// ─────────────────────────────────────────────
+// REFRESCAR UI GLOBAL
+// ─────────────────────────────────────────────
 const refreshUI = () => {
   const stats = predictor.getEstadisticas();
   renderStats(stats);
+  renderSequenceMonitor();
   renderCopilot(predictor.ultimoAnalisis);
   renderHistory(predictor.historialNumeros);
   renderBalanceChart();
@@ -1440,7 +1547,7 @@ const refreshUI = () => {
 
 const resetSession = () => {
   if (predictor.historialNumeros.length > 0) {
-    const confirmReset = window.confirm('¿Seguro que deseas reiniciar la sesión? Se borrará todo el historial y saldo acumulado.');
+    const confirmReset = window.confirm('¿Reiniciar sesión? Se limpiará el historial de tiradas, el patrón C-D-E y el saldo acumulado.');
     if (!confirmReset) return;
   }
   setHeroLevel('Reiniciando sesión...');
@@ -1453,11 +1560,11 @@ const resetSession = () => {
   if (display) display.textContent = 'Ningún número seleccionado';
   refreshUI();
   logMessage('Sesión reiniciada con estado limpio', 'success');
-  setHeroLevel('Motor Antigravity Activo ⚡');
+  setHeroLevel('Motor Antigravity Listo ⚡');
 };
 
 // ─────────────────────────────────────────────
-// MODAL
+// MODAL DE CONFIGURACIÓN
 // ─────────────────────────────────────────────
 const openModal = () => {
   renderConfig(predictor.config);
@@ -1472,8 +1579,8 @@ const handleConfigSubmit = (event) => {
 
   const payload = {
     tipoRuleta: elements.tipoRuleta?.value || 'Europea',
-    umbralRacha: Number(elements.umbralRacha?.value) || 6,
-    umbralZScore: Number(elements.umbralZScore?.value) || 2.0,
+    umbralRacha: Number(elements.umbralRacha?.value) || 4,
+    umbralZScore: Number(elements.umbralZScore?.value) || 1.5,
     usarMartingala: elements.usarMartingala?.checked ?? false,
     modoMartingala: Number(elements.modoMartingala?.value) || 1,
     valorApuestaBase
@@ -1481,21 +1588,21 @@ const handleConfigSubmit = (event) => {
 
   setHeroLevel('Guardando parámetros...');
   try {
-    const config = predictor.actualizarConfig(payload);
+    predictor.actualizarConfig(payload);
     saveState();
     refreshUI();
-    logMessage('Parámetros del motor cuantitativo actualizados', 'success');
+    logMessage('Parámetros estratégicos actualizados', 'success');
     closeModal();
   } catch (error) {
-    logMessage('Error guardando configuración: ' + error.message, 'error');
+    logMessage('Error al guardar configuración: ' + error.message, 'error');
   } finally {
-    setHeroLevel('Motor Antigravity Activo ⚡');
+    setHeroLevel('Parámetros sincronizados');
     updateLastSync();
   }
 };
 
 // ─────────────────────────────────────────────
-// RULETA PAD
+// CONSTRUCCIÓN DEL PAÑO DE RULETA (0 AL 36)
 // ─────────────────────────────────────────────
 const buildRoulettePad = () => {
   const pad = document.getElementById('roulettePad');
@@ -1538,12 +1645,12 @@ const selectNumber = (num, btn) => {
   const color = RULETA_COLORES[num];
   const label = color === 'rojo' ? 'Rojo' : color === 'negro' ? 'Negro' : 'Verde';
   const display = document.getElementById('selectedDisplay');
-  if (display) display.textContent = `Seleccionado: ${num} — ${label}`;
+  if (display) display.textContent = `Seleccionado: #${num} — ${label}`;
 };
 
 const handlePadSubmit = () => {
   if (selectedNumber === null) {
-    alert('Selecciona un número en el teclado primero.');
+    alert('Por favor selecciona un número en el paño antes de confirmar.');
     return;
   }
 
@@ -1555,7 +1662,7 @@ const handlePadSubmit = () => {
     logMessage(payload.logTexto, payload.logTone);
     setHeroLevel('Tirada procesada');
   } catch (error) {
-    logMessage('Error al registrar número: ' + error.message, 'error');
+    logMessage('Error al procesar tirada: ' + error.message, 'error');
     setHeroLevel('Error procesando tirada');
   } finally {
     selectedNumber = null;
@@ -1568,20 +1675,156 @@ const handlePadSubmit = () => {
 };
 
 // ─────────────────────────────────────────────
-// INIT
+// PLANTILLA DESCARGABLE Y SIMULACIÓN
+// ─────────────────────────────────────────────
+const downloadTemplate = () => {
+  const ejemplo = [26, 3, 3, 20, 9, 8, 17, 28, 21, 8, 17, 28, 21, 8, 26, 36, 24, 33, 2, 33, 34, 1, 12, 25, 19];
+  const contenido = `// Antigravity 2026 — Plantilla de Tiradas
+// Formato: Arreglo de números entre 0 y 36
+// Ejemplo real listo para cargar:
+
+[${ejemplo.join(', ')}]
+`;
+  const blob = new Blob([contenido], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'plantilla-tiradas-antigravity.txt';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  logMessage('Plantilla .txt descargada correctamente.', 'success');
+};
+
+const handleFileChange = () => {
+  const file = elements.simulationFile?.files?.[0];
+  const nameEl = elements.fileUploadName;
+  if (!nameEl) return;
+  if (file) {
+    nameEl.textContent = `📄 ${file.name}`;
+    nameEl.classList.add('has-file');
+  } else {
+    nameEl.textContent = 'Ningún archivo seleccionado';
+    nameEl.classList.remove('has-file');
+  }
+};
+
+const setupDragAndDrop = () => {
+  const area = elements.fileUploadArea;
+  if (!area) return;
+
+  area.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    area.classList.add('drag-over');
+  });
+  area.addEventListener('dragleave', () => area.classList.remove('drag-over'));
+  area.addEventListener('drop', (e) => {
+    e.preventDefault();
+    area.classList.remove('drag-over');
+    const file = e.dataTransfer?.files?.[0];
+    if (file && file.name.toLowerCase().endsWith('.txt')) {
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      elements.simulationFile.files = dt.files;
+      handleFileChange();
+    } else {
+      logMessage('Solo se admiten archivos en formato .txt', 'error');
+    }
+  });
+};
+
+const parseNumbersFromText = (text) => {
+  if (!text || typeof text !== 'string') return [];
+  let clean = text.replace(/\/\*[\s\S]*?\*\//g, ' ');
+  clean = clean
+    .split(/\r?\n/)
+    .map((line) => {
+      const idx = line.search(/(\/\/|#)/);
+      return idx !== -1 ? line.slice(0, idx) : line;
+    })
+    .join('\n');
+  clean = clean.replace(/(?<=\d)\s*-\s*(?=\d)/g, ' ');
+
+  const bracketMatches = [...clean.matchAll(/\[([\s\S]*?)\]/g)]
+    .map((m) => m[1])
+    .join(' ');
+  const targetText = bracketMatches.trim().length > 0 ? bracketMatches : clean;
+  const tokens = targetText.match(/-?\b\d+\b/g) || [];
+
+  return tokens
+    .map((v) => Number(v))
+    .filter((v) => Number.isInteger(v) && v >= 0 && v <= 36);
+};
+
+const handleSimulationUpload = (event) => {
+  event.preventDefault();
+  const file = elements.simulationFile?.files?.[0];
+  if (!file) {
+    alert('Selecciona un archivo .txt con números antes de procesar.');
+    return;
+  }
+
+  setHeroLevel('Leyendo archivo de simulación...');
+  const reader = new FileReader();
+
+  reader.onload = (e) => {
+    const raw = e.target.result;
+    const numeros = parseNumbersFromText(raw);
+
+    if (!numeros.length) {
+      logMessage('No se encontraron números válidos entre 0 y 36 en el archivo.', 'error');
+      setHeroLevel('Archivo sin números válidos');
+      return;
+    }
+
+    setHeroLevel(`Simulando ${numeros.length} tiradas...`);
+    let countAcciones = 0;
+    let countCompletados = 0;
+
+    numeros.forEach((num) => {
+      const out = predictor.agregarNumero(num);
+      if (out.resultadoPatron?.completo) countCompletados++;
+      if (out.analisis?.signal === 'CONDICION_FAVORABLE' || out.analisis?.signal === 'CONFLUENCIA_ALTA') {
+        countAcciones++;
+      }
+    });
+
+    saveState();
+    refreshUI();
+    logMessage(
+      `Simulación completada: ${numeros.length} tiradas procesadas. Patrones completados: ${countCompletados}. Señales de acción: ${countAcciones}.`,
+      'success'
+    );
+    setHeroLevel(`Simulación completada (${numeros.length} tiradas)`);
+
+    elements.simulationFile.value = '';
+    handleFileChange();
+  };
+
+  reader.onerror = () => {
+    logMessage('No se pudo leer el archivo seleccionado.', 'error');
+    setHeroLevel('Error leyendo archivo');
+  };
+
+  reader.readAsText(file);
+};
+
+// ─────────────────────────────────────────────
+// INICIALIZACIÓN DE LA APLICACIÓN
 // ─────────────────────────────────────────────
 const init = () => {
   loadState();
 
   const statusMessage = predictor.historialNumeros.length
-    ? 'Estado restaurado desde almacenamiento local'
-    : 'Flujo en blanco: empieza registrando un número';
+    ? 'Sesión restaurada desde almacenamiento local'
+    : 'Sistema listo: registra un número en el paño para comenzar';
   logMessage(statusMessage, 'info');
 
   refreshUI();
   buildRoulettePad();
 
-  // Botones principales
+  // Listeners principales
   elements.openConfigBtn.addEventListener('click', openModal);
   elements.resetBtn.addEventListener('click', resetSession);
   elements.closeConfigModal.addEventListener('click', closeModal);
@@ -1593,15 +1836,14 @@ const init = () => {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeModal();
     if (e.key === 'Enter' && selectedNumber !== null) {
-      const activeTag = document.activeElement?.tagName?.toLowerCase();
-      if (activeTag !== 'input' && activeTag !== 'select' && activeTag !== 'textarea') {
+      const tag = document.activeElement?.tagName?.toLowerCase();
+      if (tag !== 'input' && tag !== 'select' && tag !== 'textarea') {
         e.preventDefault();
         handlePadSubmit();
       }
     }
   });
 
-  // Botón submit del pad
   const submitBtn = document.getElementById('submitNumBtn');
   if (submitBtn) submitBtn.addEventListener('click', handlePadSubmit);
 
@@ -1610,10 +1852,7 @@ const init = () => {
   if (elements.simulationFile) elements.simulationFile.addEventListener('change', handleFileChange);
   setupDragAndDrop();
 
-  // Descargar plantilla
   if (elements.downloadTemplateBtn) elements.downloadTemplateBtn.addEventListener('click', downloadTemplate);
-
-  renderSimulationSuggestions();
 
   // Gráfico
   window.addEventListener('resize', renderBalanceChart);
@@ -1628,6 +1867,7 @@ const init = () => {
     elements.zoomRange.addEventListener('input', handleZoomChange);
     elements.zoomRange.value = chartState.windowSize.toString();
   }
+
   if (elements.balanceCanvas) {
     const handleTouch = (e) => {
       if (e.touches && e.touches.length > 0) {

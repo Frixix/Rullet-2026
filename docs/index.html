@@ -3,30 +3,35 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Antigravity 2026 • Co-Piloto Probabilístico & Control Cuantitativo</title>
+    <title>Antigravity 2026 • Co-Piloto Probabilístico & Secuencia C-D-E</title>
     <meta
       name="description"
-      content="Plataforma de análisis cuantitativo, filtro de freno estadístico y control de varianza para ruleta europea (0 al 36)."
+      content="Plataforma deportiva cuantitativa de análisis secuencial C-D-E, filtro de freno estadístico y control de varianza para ruleta europea."
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <div class="page">
+      <!-- ═══════════════════════════════════════
+           CABECERA ATHLETIC / HERO
+           ═══════════════════════════════════════ -->
       <header class="hero">
-        <p class="hero__eyebrow">Antigravity Core • Co-Piloto Probabilístico</p>
-        <h1>Antigravity Ruleta 2026</h1>
+        <div class="hero__badge">
+          <span class="hero__dot"></span>
+          ANTIGRAVITY RUOLETTELAB • PRO EDITION 2026
+        </div>
+        <h1>ANTIGRAVITY RUOLETA</h1>
         <p class="hero__lead">
-          Motor analítico riguroso basado en probabilidad condicional, filtro de freno (regla de no-apuesta),
-          gestión de varianza y control de riesgo para Ruleta Europea (0 al 36).
+          Plataforma de alta precisión: Análisis de Secuencias <strong>C — D — E</strong>, Filtro de Freno Estadístico y Control Cuantitativo de Varianza.
         </p>
 
-        <!-- ── CONFIG ACTIVA INLINE EN EL HERO ── -->
+        <!-- CONFIG SUMMARY PILLS -->
         <div class="hero__config" id="heroConfig">
           <div class="hero__config-pills">
             <span class="config-pill">
@@ -34,19 +39,23 @@
               <strong class="config-pill__value" id="heroConfigTipoRuleta">Europea (0-36)</strong>
             </span>
             <span class="config-pill">
+              <span class="config-pill__label">Patrón Base</span>
+              <strong class="config-pill__value" id="heroConfigPatron">Secuencia C-D-E</strong>
+            </span>
+            <span class="config-pill">
               <span class="config-pill__label">Filtro Freno</span>
-              <strong class="config-pill__value" id="heroConfigFiltro">Racha ≥ 6 | Z ≥ 2.0σ</strong>
+              <strong class="config-pill__value" id="heroConfigFiltro">Racha ≥ 4 | Z ≥ 1.5σ</strong>
             </span>
             <span class="config-pill">
               <span class="config-pill__label">Gestión Capital</span>
               <strong class="config-pill__value" id="heroConfigMartingala">Desactivada</strong>
             </span>
             <span class="config-pill">
-              <span class="config-pill__label">Modo</span>
-              <strong class="config-pill__value" id="heroConfigModo">Filtro Condicional</strong>
+              <span class="config-pill__label">Modo Apuesta</span>
+              <strong class="config-pill__value" id="heroConfigModo">Plana Condicional</strong>
             </span>
             <span class="config-pill config-pill--accent">
-              <span class="config-pill__label">Apuesta base</span>
+              <span class="config-pill__label">Unidad Base</span>
               <strong class="config-pill__value" id="heroConfigApuesta">$1.000</strong>
             </span>
           </div>
@@ -54,132 +63,212 @@
 
         <div class="hero__actions">
           <button id="openConfigBtn" type="button" class="btn primary">
-            Configurar parámetros
+            ⚙ Configurar Parámetros
           </button>
           <button id="resetBtn" type="button" class="btn ghost">
-            Reiniciar sesión
+            ↺ Reiniciar Sesión
           </button>
         </div>
         <div class="hero__status">
           <span id="lastSync">Esperando sincronización...</span>
-          <span id="heroLevel">Sistema Cuantitativo Activo</span>
+          <span id="heroLevel" class="hero__status-badge">Sistema Cuantitativo Listo</span>
         </div>
       </header>
 
       <main>
-        <!-- PANEL CO-PILOTO ESTRATÉGICO ANTIGRAVITY -->
-        <section class="panel panel--copilot" id="copilotPanel">
-          <header class="panel__header">
-            <div>
-              <p class="eyebrow">Control de Riesgo & Varianza</p>
-              <h2>Filtro de Freno & Señal Estratégica</h2>
-            </div>
-            <div id="copilotSignal" class="copilot-signal signal-esperar">
-              <span class="signal-dot"></span>
-              <span id="signalText" class="signal-text">[ESPERAR]</span>
-            </div>
-          </header>
+        <!-- ═══════════════════════════════════════
+             COCKPIT ESTRATÉGICO DUAL
+             1. Monitor de Secuencia C-D-E
+             2. Radar Cuantitativo Antigravity
+             ═══════════════════════════════════════ -->
+        <section class="cockpit-dual">
+          
+          <!-- TARJETA 1: MONITOR DE PATRÓN SECUENCIAL C-D-E -->
+          <article class="panel panel--sequence" id="sequencePanel">
+            <header class="panel__header">
+              <div>
+                <p class="eyebrow">Estrategia de Secuencia</p>
+                <h2>Monitor Patrón C — D — E</h2>
+              </div>
+              <div id="patternStatusBadge" class="pattern-badge badge-idle">
+                <span class="badge-dot"></span>
+                <span id="patternBadgeText">En espera de tirada</span>
+              </div>
+            </header>
 
-          <div class="copilot-grid">
-            <div class="copilot-card">
-              <span class="copilot-card__label">Racha Activa</span>
-              <strong id="copilotStreak" class="copilot-card__value">0 — Neutro</strong>
-              <span id="copilotStreakProb" class="copilot-card__sub">P(teórica): 100%</span>
-            </div>
-            <div class="copilot-card">
-              <span class="copilot-card__label">Desviación (Z-Score)</span>
-              <strong id="copilotZScore" class="copilot-card__value">0.00σ</strong>
-              <span id="copilotVarianceStatus" class="copilot-card__sub">Rango estocástico normal</span>
-            </div>
-            <div class="copilot-card">
-              <span class="copilot-card__label">Nivel de Riesgo</span>
-              <strong id="copilotRisk" class="copilot-card__value risk-low">BAJO</strong>
-              <span id="copilotFilterStatus" class="copilot-card__sub">Filtro de freno ACTIVO</span>
-            </div>
-            <div class="copilot-card">
-              <span class="copilot-card__label">Gestión Factor 0</span>
-              <strong id="copilotZeroGap" class="copilot-card__value">0 tiradas</strong>
-              <span id="copilotZeroRatio" class="copilot-card__sub">Obs: 0% | Esp: 2.70%</span>
-            </div>
-          </div>
-
-          <div class="copilot-banner">
-            <div class="copilot-banner__header">
-              <span class="copilot-badge">Análisis de Distribución</span>
-              <span id="copilotTarget" class="copilot-target">Sin objetivo activo</span>
-            </div>
-            <p id="copilotDiagnosis" class="copilot-diagnosis">
-              Esperando tiradas para calibrar la varianza local frente a la tendencia de equilibrio macro.
+            <p class="panel__subtext">
+              Cada número inicial activa su terna de colores teórica. Supera la Etapa C, valida en Etapa D y ejecuta la entrada estratégica en Etapa E.
             </p>
-          </div>
+
+            <!-- STEPS GRID C - D - E -->
+            <div class="sequence-steps-grid">
+              <!-- ETAPA C -->
+              <div class="step-card" id="stepCardC">
+                <div class="step-card__header">
+                  <span class="step-pill">1</span>
+                  <span class="step-title">Etapa C</span>
+                  <span class="step-state" id="stepStateC">Inactivo</span>
+                </div>
+                <div class="step-card__body">
+                  <span class="step-color-label">Color Esperado:</span>
+                  <div class="step-chip" id="stepChipC">—</div>
+                </div>
+              </div>
+
+              <!-- ETAPA D -->
+              <div class="step-card" id="stepCardD">
+                <div class="step-card__header">
+                  <span class="step-pill">2</span>
+                  <span class="step-title">Etapa D</span>
+                  <span class="step-state" id="stepStateD">Inactivo</span>
+                </div>
+                <div class="step-card__body">
+                  <span class="step-color-label">Color Esperado:</span>
+                  <div class="step-chip" id="stepChipD">—</div>
+                </div>
+              </div>
+
+              <!-- ETAPA E -->
+              <div class="step-card step-card--trigger" id="stepCardE">
+                <div class="step-card__header">
+                  <span class="step-pill">3</span>
+                  <span class="step-title">Etapa E (Acción)</span>
+                  <span class="step-state" id="stepStateE">Inactivo</span>
+                </div>
+                <div class="step-card__body">
+                  <span class="step-color-label">Disparo Apuesta:</span>
+                  <div class="step-chip" id="stepChipE">—</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- BANNER PRÓXIMO OBJETIVO C-D-E -->
+            <div class="pattern-next-banner" id="patternNextBanner">
+              <span class="next-banner__tag">Próximo Objetivo Sugerido:</span>
+              <strong id="patternNextColor" class="next-banner__color">
+                Ninguno — Registra un número para iniciar
+              </strong>
+            </div>
+          </article>
+
+          <!-- TARJETA 2: RADAR DE RIESGO & FILTRO ANTIGRAVITY -->
+          <article class="panel panel--copilot" id="copilotPanel">
+            <header class="panel__header">
+              <div>
+                <p class="eyebrow">Probabilidad Condicional & Varianza</p>
+                <h2>Radar Antigravity</h2>
+              </div>
+              <div id="copilotSignal" class="copilot-signal signal-esperar">
+                <span class="signal-dot"></span>
+                <span id="signalText" class="signal-text">[FILTRO DE FRENO: ESPERAR]</span>
+              </div>
+            </header>
+
+            <!-- MÉTRICAS EN GRID DE 4 -->
+            <div class="copilot-grid">
+              <div class="copilot-card">
+                <span class="copilot-card__label">Racha Activa</span>
+                <strong id="copilotStreak" class="copilot-card__value">0 — Neutro</strong>
+                <span id="copilotStreakProb" class="copilot-card__sub">P(ruptura): 0%</span>
+              </div>
+              <div class="copilot-card">
+                <span class="copilot-card__label">Desviación (Z-Score)</span>
+                <strong id="copilotZScore" class="copilot-card__value">0.00σ</strong>
+                <span id="copilotVarianceStatus" class="copilot-card__sub">Rango estocástico normal</span>
+              </div>
+              <div class="copilot-card">
+                <span class="copilot-card__label">Nivel de Riesgo</span>
+                <strong id="copilotRisk" class="copilot-card__value risk-low">BAJO</strong>
+                <span id="copilotFilterStatus" class="copilot-card__sub">Filtro de Freno ACTIVO</span>
+              </div>
+              <div class="copilot-card">
+                <span class="copilot-card__label">Gestión Factor Cero</span>
+                <strong id="copilotZeroGap" class="copilot-card__value">0 tiradas</strong>
+                <span id="copilotZeroRatio" class="copilot-card__sub">Obs: 0% | Esp: 2.70%</span>
+              </div>
+            </div>
+
+            <!-- DIAGNÓSTICO DETALLADO -->
+            <div class="copilot-banner">
+              <div class="copilot-banner__header">
+                <span class="copilot-badge">Diagnóstico Cuantitativo</span>
+                <span id="copilotTarget" class="copilot-target">Sin objetivo activo</span>
+              </div>
+              <p id="copilotDiagnosis" class="copilot-diagnosis">
+                Esperando tiradas para calibrar la varianza local frente a la tendencia macro.
+              </p>
+            </div>
+          </article>
+
         </section>
 
-        <!-- GRÁFICO -->
+        <!-- ═══════════════════════════════════════
+             GRÁFICO DE BALANCE & VARIANZA
+             ═══════════════════════════════════════ -->
         <section class="panel panel--chart">
           <header class="panel__header">
             <div>
-              <p class="eyebrow">Rendimiento & Capital</p>
-              <h2>Curva de Balance & Varianza</h2>
+              <p class="eyebrow">Rendimiento Cuantitativo</p>
+              <h2>Curva de Capital & Velas de Varianza</h2>
             </div>
           </header>
           <p class="panel__description">
-            Cada lanzamiento que activa la martingala se refleja aquí como una vela; la parte
-            superior marca el pico, la inferior la caída, y el cuerpo indica si el saldo subió o
-            bajó respecto al paso anterior.
+            Evolución del saldo en tiempo real. Cada tirada donde opera la martingala se representa como una vela que refleja el pico, la caída y la variación de capital acumulado.
           </p>
           <div class="chart-wrapper">
             <canvas id="balanceCanvas"></canvas>
           </div>
           <div class="chart-summary">
             <div>
-              <span>Máximo saldo</span>
+              <span>Máximo Capital</span>
               <strong id="balanceHigh">$0</strong>
             </div>
             <div>
-              <span>Mínimo saldo</span>
+              <span>Mínimo Capital</span>
               <strong id="balanceLow">$0</strong>
             </div>
             <div>
-              <span>Rango</span>
+              <span>Rango Varianza</span>
               <strong id="balanceDiff">$0</strong>
             </div>
             <div>
-              <span>Saldo actual</span>
+              <span>Saldo Actual</span>
               <strong id="balanceCurrent">$0</strong>
             </div>
           </div>
           <div class="chart-controls">
-            <label for="zoomRange">Zoom: <span id="zoomValue">60</span> tiradas</label>
+            <label for="zoomRange">Zoom de Ventana: <span id="zoomValue">60</span> tiradas</label>
             <input id="zoomRange" type="range" min="10" max="200" value="60" step="5" />
           </div>
           <div class="chart-hover-info">
-            <span id="hoverLaunch">Lanzamiento: —</span>
-            <span id="hoverSaldo">Saldo actual: —</span>
+            <span id="hoverLaunch">Tirada: —</span>
+            <span id="hoverSaldo">Saldo: —</span>
           </div>
         </section>
 
-        <!-- GRID: BITÁCORA + INGRESO DE NÚMERO -->
+        <!-- ═══════════════════════════════════════
+             GRID 1: BITÁCORA + PAÑO DE RULETA
+             ═══════════════════════════════════════ -->
         <section class="grid grid--two">
-
-          <!-- BITÁCORA (tomó el lugar de config) -->
+          <!-- BITÁCORA DE ACCIONES -->
           <article class="panel panel--log">
             <header class="panel__header">
               <div>
-                <p class="eyebrow">Bitácora de eventos</p>
-                <h2>Registro de acciones</h2>
+                <p class="eyebrow">Registro Cuantitativo</p>
+                <h2>Bitácora de Eventos</h2>
               </div>
             </header>
             <div id="logList" class="log-list">
-              <p class="placeholder">El sistema arrancará aquí.</p>
+              <p class="placeholder">Registra tiradas para iniciar la bitácora analítica.</p>
             </div>
           </article>
 
-          <!-- INGRESO DE NÚMERO -->
+          <!-- INGRESO DE RESULTADO (PAÑO) -->
           <article class="panel panel--input">
             <div class="panel__header">
               <div>
-                <p class="eyebrow">Ingresar resultado</p>
-                <h2>Agregar número</h2>
+                <p class="eyebrow">Entrada Rápida</p>
+                <h2>Paño de Ruleta (0 al 36)</h2>
               </div>
             </div>
             <div id="numberForm" class="number-form">
@@ -187,34 +276,36 @@
               <div id="selectedDisplay" class="selected-display">
                 Ningún número seleccionado
               </div>
-              <button type="button" class="btn primary" id="submitNumBtn">
-                Enviar número
+              <button type="button" class="btn primary btn--large" id="submitNumBtn">
+                Confirmar Tirada [Enter]
               </button>
             </div>
           </article>
         </section>
 
-        <!-- GRID: ESTADÍSTICAS + HISTORIAL -->
+        <!-- ═══════════════════════════════════════
+             GRID 2: ESTADÍSTICAS + HISTORIAL
+             ═══════════════════════════════════════ -->
         <section class="grid grid--two mt-1">
           <article class="panel panel--stats">
             <header class="panel__header">
               <div>
-                <p class="eyebrow">Estadísticas</p>
-                <h2>Colores y top números</h2>
+                <p class="eyebrow">Distribución de Frecuencia</p>
+                <h2>Métricas & Top Números</h2>
               </div>
             </header>
             <div class="stats__cards">
               <div class="stat-card">
-                <span>Total de tiradas</span>
+                <span>Total Tiradas</span>
                 <strong id="totalTiradas">0</strong>
               </div>
               <div class="stat-card">
                 <span>Saldo Martingala</span>
-                <strong id="saldoMartingala">0</strong>
+                <strong id="saldoMartingala">$0</strong>
               </div>
               <div class="stat-card">
-                <span>Apuesta base</span>
-                <strong id="valorApuesta">$0</strong>
+                <span>Apuesta Base</span>
+                <strong id="valorApuesta">$1.000</strong>
               </div>
             </div>
             <div class="color-bars">
@@ -233,7 +324,7 @@
                 <strong id="labelNegro">0%</strong>
               </div>
               <div class="color-bar">
-                <span>Verde</span>
+                <span>Verde (0)</span>
                 <div class="bar">
                   <div id="barVerde" class="bar__fill verde"></div>
                 </div>
@@ -241,9 +332,9 @@
               </div>
             </div>
             <div class="top-numbers">
-              <p class="eyebrow">Top 5 números</p>
+              <p class="eyebrow">Top 5 Números Más Frecuentes</p>
               <ol id="topNumbersList" class="top-numbers__list">
-                <li class="placeholder">Sin datos</li>
+                <li class="placeholder">Sin datos de tiradas aún.</li>
               </ol>
             </div>
           </article>
@@ -251,32 +342,31 @@
           <article class="panel panel--history">
             <header class="panel__header">
               <div>
-                <p class="eyebrow">Historial</p>
-                <h2>Últimas 15 tiradas</h2>
+                <p class="eyebrow">Secuencia Temporal</p>
+                <h2>Últimas 15 Tiradas</h2>
               </div>
             </header>
             <ul id="historyList" class="history-list">
-              <li class="placeholder">Aún no hay tiradas.</li>
+              <li class="placeholder">Aún no hay tiradas registradas.</li>
             </ul>
           </article>
         </section>
 
-        <!-- SIMULACIONES (de vuelta dentro de main) -->
+        <!-- ═══════════════════════════════════════
+             SECCIÓN DE SIMULACIÓN (.TXT)
+             ═══════════════════════════════════════ -->
         <section class="panel panel--simulation">
           <header class="panel__header">
             <div>
-              <p class="eyebrow">Simulaciones</p>
-              <h2>Cargar archivo .txt</h2>
+              <p class="eyebrow">Backtesting & Validación</p>
+              <h2>Simulación de Tiradas Masivas (.txt)</h2>
             </div>
           </header>
           <p class="panel__description">
-            Exporta tus tiradas en un arreglo como el ejemplo (<code>[30, 18, 5, …]</code>) y súbelo aquí. El
-            sistema procesará cada número en orden, completará el historial, actualizará las barras
-            y te mostrará cómo responde la martingala ante los patrones que tú defines.
+            Sube un archivo con un arreglo de números (ej. <code>[26, 3, 3, 20, 9, 8, 17, 28, 21]</code>). El sistema procesará cada tiro en orden, actualizando instantáneamente las etapas C-D-E, el radar Antigravity, la gráfica y el balance.
           </p>
 
           <form id="simulationForm" class="simulation-form">
-            <!-- FILE INPUT CUSTOM -->
             <div class="file-upload-area" id="fileUploadArea">
               <input
                 type="file"
@@ -285,75 +375,76 @@
                 class="file-upload__input"
               />
               <div class="file-upload__icon">📂</div>
-              <p class="file-upload__title">Arrastra tu archivo aquí</p>
-              <p class="file-upload__hint">o haz clic para seleccionar un <strong>.txt</strong></p>
+              <p class="file-upload__title">Arrastra tu archivo .txt aquí</p>
+              <p class="file-upload__hint">o haz clic para explorar tu equipo</p>
               <span class="file-upload__name" id="fileUploadName">Ningún archivo seleccionado</span>
             </div>
 
             <div class="simulation-form__actions">
               <button type="submit" class="btn primary">
-                ▶ Procesar archivo
+                ▶ Iniciar Simulación
               </button>
               <button type="button" id="downloadTemplateBtn" class="btn ghost">
-                ↓ Descargar plantilla
+                ↓ Descargar Plantilla .txt
               </button>
             </div>
           </form>
 
           <div class="simulation__notes">
-            <h3>Principios Cuantitativos del Co-Piloto</h3>
+            <h3>Principios de Operación Estratégica</h3>
             <ul id="suggestionsList">
-              <li>El Filtro de Freno descarta el 85-90% de las tiradas para proteger contra el margen de la casa.</li>
-              <li>Las entradas se calculan solo cuando la desviación estándar supera el umbral estadístico (Z ≥ 2.0σ).</li>
-              <li>El Cero (0) actúa como disyuntor de simetría: cada cero absorbe apuestas de suertes simples.</li>
+              <li>El Filtro de Freno preserva el 70-80% del capital, actuando únicamente en condiciones de alta probabilidad condicional.</li>
+              <li>La Secuencia C-D-E proporciona estructura secuencial definida en 3 etapas encadenadas.</li>
+              <li>La confluencia entre la Etapa E y una racha de varianza Antigravity representa el dintel de máxima probabilidad operativa.</li>
             </ul>
           </div>
         </section>
-
       </main>
     </div>
 
-    <!-- MODAL CONFIGURACIÓN -->
+    <!-- ═══════════════════════════════════════
+         MODAL DE CONFIGURACIÓN
+         ═══════════════════════════════════════ -->
     <div class="modal" id="configModal" aria-hidden="true">
       <div class="modal__backdrop"></div>
       <div class="modal__content">
         <header class="modal__header">
           <div>
-            <p class="eyebrow">Parámetros Algorítmicos</p>
+            <p class="eyebrow">Parámetros Estratégicos</p>
             <h3>Configuración del Motor Antigravity</h3>
           </div>
           <button id="closeConfigModal" type="button" class="btn text">
-            Cerrar
+            ✕ Cerrar
           </button>
         </header>
         <form id="configForm" class="config-form">
           <label>
-            Tipo de ruleta
+            Tipo de Ruleta
             <select id="tipoRuleta" name="tipoRuleta">
               <option value="Europea">Europea (0 al 36 - 1 Cero / Margen 2.70%)</option>
               <option value="Americana">Americana (0 y 00 - 2 Ceros / Margen 5.26%)</option>
             </select>
           </label>
           <label>
-            Umbral mínimo de racha (Filtro de Freno)
+            Sensibilidad de Racha (Filtro de Freno Antigravity)
             <select id="umbralRacha" name="umbralRacha">
-              <option value="5">Racha ≥ 5 tiradas (Sensibilidad alta)</option>
-              <option value="6" selected>Racha ≥ 6 tiradas (Estándar recomendado)</option>
-              <option value="7">Racha ≥ 7 tiradas (Alta selectividad)</option>
-              <option value="8">Racha ≥ 8 tiradas (Filtro extremo)</option>
+              <option value="3">Racha ≥ 3 (Sensibilidad Rápida - Ideal sesiones de 15 min)</option>
+              <option value="4" selected>Racha ≥ 4 (Recomendado Antigravity - 94.4% ruptura)</option>
+              <option value="5">Racha ≥ 5 (Filtro Conservador - 97.2% ruptura)</option>
+              <option value="6">Racha ≥ 6 (Filtro Estricto de Alta Selectividad)</option>
             </select>
           </label>
           <label>
-            Umbral crítico Z-Score (|Z| mínimo para señal)
+            Umbral de Tensión Z-Score (|Z| para confirmación)
             <select id="umbralZScore" name="umbralZScore">
-              <option value="1.5">Z ≥ 1.5σ (Desviación moderada)</option>
-              <option value="2.0" selected>Z ≥ 2.0σ (Intervalo de confianza 95.4%)</option>
-              <option value="2.5">Z ≥ 2.5σ (Intervalo de confianza 98.8%)</option>
+              <option value="1.0">Z ≥ 1.0σ (Desviación estocástica inicial)</option>
+              <option value="1.5" selected>Z ≥ 1.5σ (Recomendado Antigravity)</option>
+              <option value="2.0">Z ≥ 2.0σ (Intervalo de confianza 95.4%)</option>
             </select>
           </label>
           <label class="checkbox-field">
             <input type="checkbox" id="usarMartingala" name="usarMartingala" />
-            Habilitar ejecución de apuestas (Solo en señal favorable)
+            Habilitar ejecución de apuestas (En Etapa E o Señal Favorable)
           </label>
           <div
             class="martingala-details"
@@ -361,20 +452,21 @@
             style="display: none"
           >
             <label>
-              Gestión de Capital en Señal
+              Gestión de Capital en Acción
               <select id="modoMartingala" name="modoMartingala">
-                <option value="1">Apuesta Plana Condicional (Sin progresión)</option>
-                <option value="2">Escalonada de Cobertura (Hasta 4 niveles)</option>
+                <option value="1">Apuesta Plana Condicional (Sin progresión - Menor riesgo)</option>
+                <option value="2">Escalonada de Recuperación (Hasta 4 niveles)</option>
               </select>
             </label>
             <label>
-              Unidad / Apuesta base
+              Unidad / Apuesta Base
               <input
                 type="number"
                 id="valorApuestaBase"
                 name="valorApuestaBase"
                 min="100"
                 step="100"
+                value="1000"
               />
             </label>
           </div>
