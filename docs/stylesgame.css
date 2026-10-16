@@ -327,6 +327,212 @@ main {
   box-shadow: var(--shadow-lg), 0 0 30px rgba(var(--accent2-rgb), 0.07);
 }
 
+/* ════════════════════════════════════════
+   PANEL CO-PILOTO ANTIGRAVITY (MISSION CONTROL)
+════════════════════════════════════════ */
+.panel--copilot {
+  position: relative;
+  border-color: rgba(0, 245, 255, 0.28);
+  background: linear-gradient(135deg, rgba(0, 245, 255, 0.06), rgba(4, 4, 18, 0.96) 60%, rgba(255, 45, 155, 0.05));
+  box-shadow: var(--shadow-lg), 0 0 30px rgba(var(--accent-rgb), 0.1);
+  overflow: hidden;
+}
+
+.panel--copilot::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 10%; right: 10%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), var(--accent2), transparent);
+  box-shadow: var(--glow-accent);
+}
+
+.panel--copilot:hover {
+  border-color: rgba(0, 245, 255, 0.5);
+  box-shadow: var(--shadow-lg), 0 0 45px rgba(var(--accent-rgb), 0.2);
+}
+
+/* Copilot Signal Badge */
+.copilot-signal {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.6rem 1.4rem;
+  border-radius: 999px;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: var(--transition-base);
+  box-shadow: var(--shadow-sm);
+}
+
+.copilot-signal.signal-esperar {
+  background: rgba(255, 183, 0, 0.08);
+  border: 1px solid rgba(255, 183, 0, 0.4);
+  color: #ffca28;
+  box-shadow: 0 0 16px rgba(255, 183, 0, 0.2);
+}
+
+.copilot-signal.signal-esperar .signal-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ffb300;
+  box-shadow: 0 0 10px #ffb300;
+  animation: pulse-amber 2s infinite ease-in-out;
+}
+
+.copilot-signal.signal-accion {
+  background: rgba(0, 230, 118, 0.15);
+  border: 1.5px solid #00e676;
+  color: #69f0ae;
+  box-shadow: 0 0 25px rgba(0, 230, 118, 0.45);
+  animation: pulse-glow-action 2s infinite ease-in-out;
+}
+
+.copilot-signal.signal-accion .signal-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #00e676;
+  box-shadow: 0 0 14px #00e676;
+  animation: pulse-green 1s infinite ease-in-out;
+}
+
+@keyframes pulse-amber {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.85); }
+}
+
+@keyframes pulse-green {
+  0%, 100% { opacity: 1; transform: scale(1.2); box-shadow: 0 0 16px #00e676; }
+  50% { opacity: 0.6; transform: scale(0.85); box-shadow: 0 0 6px #00e676; }
+}
+
+@keyframes pulse-glow-action {
+  0%, 100% { box-shadow: 0 0 20px rgba(0, 230, 118, 0.4); }
+  50% { box-shadow: 0 0 35px rgba(0, 230, 118, 0.7); }
+}
+
+/* Copilot Grid */
+.copilot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin: 1.3rem 0;
+}
+
+.copilot-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 1.1rem 1.25rem;
+  background: rgba(10, 10, 28, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 1rem;
+  transition: var(--transition-fast);
+  position: relative;
+  overflow: hidden;
+}
+
+.copilot-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.copilot-card:hover {
+  transform: translateY(-3px);
+  background: rgba(0, 245, 255, 0.04);
+  border-color: rgba(0, 245, 255, 0.3);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5), 0 0 15px rgba(var(--accent-rgb), 0.1);
+}
+
+.copilot-card:hover::after {
+  opacity: 1;
+}
+
+.copilot-card__label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--text-muted);
+}
+
+.copilot-card__value {
+  font-family: var(--font-display);
+  font-size: 1.7rem;
+  letter-spacing: 0.04em;
+  color: var(--text-primary);
+  line-height: 1.1;
+  margin: 0.1rem 0;
+}
+
+.copilot-card__sub {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  font-weight: 300;
+  line-height: 1.3;
+}
+
+.risk-low { color: #00e676 !important; text-shadow: 0 0 10px rgba(0, 230, 118, 0.4); }
+.risk-med { color: #ffb300 !important; text-shadow: 0 0 10px rgba(255, 179, 0, 0.4); }
+.risk-high { color: #ff5f1f !important; text-shadow: 0 0 10px rgba(255, 95, 31, 0.4); }
+.risk-critical { color: #ff1a4e !important; text-shadow: 0 0 12px rgba(255, 26, 78, 0.5); }
+
+/* Copilot Banner */
+.copilot-banner {
+  margin-top: 0.6rem;
+  padding: 1.1rem 1.4rem;
+  background: rgba(2, 2, 10, 0.7);
+  border: 1px solid rgba(0, 245, 255, 0.16);
+  border-left: 3px solid var(--accent);
+  border-radius: 0.9rem;
+  box-shadow: inset 0 0 20px rgba(0,0,0,0.4);
+}
+
+.copilot-banner__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.8rem;
+  margin-bottom: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.copilot-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--accent);
+  background: rgba(0, 245, 255, 0.1);
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 245, 255, 0.25);
+  box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.2);
+}
+
+.copilot-target {
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #ff8fa8;
+}
+
+.copilot-diagnosis {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  font-weight: 300;
+}
+
 .panel__header {
   display: flex;
   justify-content: space-between;
@@ -687,8 +893,13 @@ main {
 }
 
 .roulette-pad button.num-green {
-  background: linear-gradient(145deg, #006e30, #003a18);
-  border-color: rgba(0, 230, 118, 0.2);
+  background: linear-gradient(145deg, #008f3e, #004d20);
+  border-color: rgba(0, 230, 118, 0.4);
+  grid-column: 1 / -1;
+  aspect-ratio: auto;
+  min-height: 42px;
+  font-size: 1.1rem;
+  letter-spacing: 0.1em;
 }
 
 .roulette-pad button:hover {

@@ -937,12 +937,12 @@ const renderBalanceChart = () => {
   updateZoomLabel(chartState.windowSize);
 
   // ── Fondo ─────────────────────────────────────────────────────
-  ctx.fillStyle = 'rgba(3,3,3,0.9)';
+  ctx.fillStyle = 'rgba(2, 2, 10, 0.96)';
   ctx.fillRect(0, 0, width, height);
 
   if (!visibleLength) {
-    ctx.fillStyle = 'rgba(255,255,255,0.35)';
-    ctx.font = '13px "Space Grotesk", sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.font = '13px "Outfit", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('Registra tiradas para ver el saldo en acción', width / 2, height / 2);
@@ -972,15 +972,15 @@ const renderBalanceChart = () => {
     const y   = toY(val);
     const isZeroLine = Math.abs(val) < valueRange / numGridLines / 2;
 
-    ctx.strokeStyle = isZeroLine ? 'rgba(255,255,255,0)' : 'rgba(255,255,255,0.05)';
+    ctx.strokeStyle = isZeroLine ? 'rgba(255,255,255,0)' : 'rgba(255,255,255,0.06)';
     ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(PAD_LEFT, y); ctx.lineTo(width - PAD_RIGHT, y); ctx.stroke();
 
     // Etiquetas del eje Y
     const roundedVal = Math.round(val);
     const isPos = roundedVal >= 0;
-    ctx.fillStyle = isZeroLine ? 'rgba(255,255,255,0.7)' : 'rgba(203,213,255,0.55)';
-    ctx.font = `${isZeroLine ? 'bold ' : ''}10px "Space Grotesk", sans-serif`;
+    ctx.fillStyle = isZeroLine ? 'rgba(255,255,255,0.75)' : 'rgba(184, 196, 240, 0.6)';
+    ctx.font = `${isZeroLine ? 'bold ' : ''}10px "JetBrains Mono", monospace`;
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
     ctx.fillText(
@@ -990,7 +990,7 @@ const renderBalanceChart = () => {
   }
 
   // ── Línea de cero ─────────────────────────────────────────────
-  const zeroColor = currentBalance >= 0 ? 'rgba(34,197,94,0.8)' : 'rgba(239,68,68,0.8)';
+  const zeroColor = currentBalance >= 0 ? 'rgba(0, 230, 118, 0.85)' : 'rgba(255, 26, 78, 0.85)';
   ctx.save();
   ctx.strokeStyle = zeroColor;
   ctx.lineWidth   = 1.5;
@@ -1000,7 +1000,6 @@ const renderBalanceChart = () => {
   ctx.restore();
 
   // ── Área de relleno (verde arriba, rojo abajo) ────────────────
-  // Construimos la forma: línea de closes + volver al cero
   const areaPath = new Path2D();
   areaPath.moveTo(toX(0), yZero);
   visibleTimeline.forEach((e, i) => areaPath.lineTo(toX(i), toY(e.close)));
@@ -1013,8 +1012,8 @@ const renderBalanceChart = () => {
   ctx.rect(PAD_LEFT, PAD_TOP, chartWidth, Math.max(0, yZero - PAD_TOP));
   ctx.clip();
   const gradPos = ctx.createLinearGradient(0, PAD_TOP, 0, yZero);
-  gradPos.addColorStop(0, 'rgba(34,197,94,0.35)');
-  gradPos.addColorStop(1, 'rgba(34,197,94,0.04)');
+  gradPos.addColorStop(0, 'rgba(0, 230, 118, 0.35)');
+  gradPos.addColorStop(1, 'rgba(0, 230, 118, 0.04)');
   ctx.fillStyle = gradPos;
   ctx.fill(areaPath);
   ctx.restore();
@@ -1025,8 +1024,8 @@ const renderBalanceChart = () => {
   ctx.rect(PAD_LEFT, yZero, chartWidth, Math.max(0, (PAD_TOP + chartHeight) - yZero));
   ctx.clip();
   const gradNeg = ctx.createLinearGradient(0, yZero, 0, PAD_TOP + chartHeight);
-  gradNeg.addColorStop(0, 'rgba(239,68,68,0.04)');
-  gradNeg.addColorStop(1, 'rgba(239,68,68,0.35)');
+  gradNeg.addColorStop(0, 'rgba(255, 26, 78, 0.04)');
+  gradNeg.addColorStop(1, 'rgba(255, 26, 78, 0.35)');
   ctx.fillStyle = gradNeg;
   ctx.fill(areaPath);
   ctx.restore();
@@ -1038,9 +1037,9 @@ const renderBalanceChart = () => {
     i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
   });
   const lineGrad = ctx.createLinearGradient(0, PAD_TOP, 0, PAD_TOP + chartHeight);
-  lineGrad.addColorStop(0,   '#22c55e');
-  lineGrad.addColorStop(0.5, '#facc15');
-  lineGrad.addColorStop(1,   '#ef4444');
+  lineGrad.addColorStop(0,   '#00f5ff');
+  lineGrad.addColorStop(0.5, '#00e676');
+  lineGrad.addColorStop(1,   '#ff1a4e');
   ctx.strokeStyle = lineGrad;
   ctx.lineWidth   = 2.5;
   ctx.lineJoin    = 'round';
@@ -1052,11 +1051,11 @@ const renderBalanceChart = () => {
     const x     = toX(i);
     const y     = toY(entry.close);
     const isWin = entry.tipo === 'acierto';
-    const dotColor = isWin ? '#22c55e' : '#ef4444';
+    const dotColor = isWin ? '#00e676' : '#ff1a4e';
 
     // Halo
     const glow = ctx.createRadialGradient(x, y, 0, x, y, 12);
-    glow.addColorStop(0, isWin ? 'rgba(34,197,94,0.45)' : 'rgba(239,68,68,0.45)');
+    glow.addColorStop(0, isWin ? 'rgba(0, 230, 118, 0.5)' : 'rgba(255, 26, 78, 0.5)');
     glow.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = glow;
     ctx.beginPath(); ctx.arc(x, y, 12, 0, Math.PI * 2); ctx.fill();
@@ -1069,8 +1068,8 @@ const renderBalanceChart = () => {
     // Delta encima del punto
     const diff  = entry.close - entry.open;
     const label = (diff >= 0 ? '+' : '') + '$' + Math.abs(Math.round(diff));
-    ctx.fillStyle     = isWin ? '#86efac' : '#fca5a5';
-    ctx.font          = 'bold 9px "Space Grotesk", sans-serif';
+    ctx.fillStyle     = isWin ? '#69f0ae' : '#ffa0b4';
+    ctx.font          = 'bold 9px "JetBrains Mono", monospace';
     ctx.textAlign     = 'center';
     ctx.textBaseline  = 'bottom';
     ctx.fillText(label, x, y - 9);
