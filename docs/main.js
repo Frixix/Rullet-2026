@@ -912,7 +912,13 @@ const elements = {
   fileUploadArea: document.getElementById('fileUploadArea'),
   fileUploadName: document.getElementById('fileUploadName'),
   suggestionsList: document.getElementById('suggestionsList'),
-  downloadTemplateBtn: document.getElementById('downloadTemplateBtn')
+  downloadTemplateBtn: document.getElementById('downloadTemplateBtn'),
+
+  // Entrada Sagaz / Pegar Arreglo Rápido
+  quickArrayInput: document.getElementById('quickArrayInput'),
+  quickArraySubmitBtn: document.getElementById('quickArraySubmitBtn'),
+  quickArrayPasteBtn: document.getElementById('quickArrayPasteBtn'),
+  quickArrayClearBtn: document.getElementById('quickArrayClearBtn')
 };
 
 let selectedNumber = null;
@@ -1811,6 +1817,76 @@ const handleSimulationUpload = (event) => {
 };
 
 // ─────────────────────────────────────────────
+// APARTADO DE PEGAR ARREGLO RÁPIDO (ENTRADA SAGAZ)
+// ─────────────────────────────────────────────
+const handleQuickArraySubmit = () => {
+  const raw = elements.quickArrayInput?.value;
+  if (!raw || !raw.trim()) {
+    alert('Por favor pega un array de números en la caja de texto.');
+    return;
+  }
+
+  const numeros = parseNumbersFromText(raw);
+  if (!numeros.length) {
+    alert('No se encontraron números válidos entre 0 y 36 en el texto ingresado.');
+    return;
+  }
+
+  setHeroLevel(`Inyectando lote de ${numeros.length} tiradas...`);
+  let countAcciones = 0;
+  let countCompletados = 0;
+
+  numeros.forEach((num) => {
+    const out = predictor.agregarNumero(num);
+    if (out.resultadoPatron?.completo) countCompletados++;
+    if (out.analisis?.signal === 'CONDICION_FAVORABLE' || out.analisis?.signal === 'CONFLUENCIA_ALTA') {
+      countAcciones++;
+    }
+  });
+
+  saveState();
+  refreshUI();
+  logMessage(
+    `⚡ Entrada Sagaz: ${numeros.length} tiradas inyectadas en lote. Patrones completados: ${countCompletados}. Señales activas: ${countAcciones}.`,
+    'success'
+  );
+  setHeroLevel(`Lote de ${numeros.length} tiradas inyectado ⚡`);
+
+  // Feedback visual en el botón
+  if (elements.quickArraySubmitBtn) {
+    const origText = elements.quickArraySubmitBtn.textContent;
+    elements.quickArraySubmitBtn.textContent = '¡Inyectado con Éxito! ✓';
+    setTimeout(() => {
+      elements.quickArraySubmitBtn.textContent = origText;
+    }, 1800);
+  }
+};
+
+const handleQuickArrayClear = () => {
+  if (elements.quickArrayInput) {
+    elements.quickArrayInput.value = '';
+    elements.quickArrayInput.focus();
+    logMessage('Caja de array limpiada', 'info');
+  }
+};
+
+const handleQuickArrayPaste = async () => {
+  try {
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      const text = await navigator.clipboard.readText();
+      if (text && elements.quickArrayInput) {
+        elements.quickArrayInput.value = text;
+        logMessage('Array pegado desde el portapapeles con éxito', 'info');
+      }
+    } else {
+      alert('Tu navegador requiere usar Ctrl+V para pegar directamente en la caja.');
+    }
+  } catch (err) {
+    logMessage('Usa Ctrl+V para pegar directamente en la caja de texto.', 'warn');
+  }
+};
+
+// ─────────────────────────────────────────────
 // INICIALIZACIÓN DE LA APLICACIÓN
 // ─────────────────────────────────────────────
 const init = () => {
@@ -1846,6 +1922,25 @@ const init = () => {
 
   const submitBtn = document.getElementById('submitNumBtn');
   if (submitBtn) submitBtn.addEventListener('click', handlePadSubmit);
+
+  // Entrada Sagaz (Pegar Arreglo Rápido)
+  if (elements.quickArraySubmitBtn) {
+    elements.quickArraySubmitBtn.addEventListener('click', handleQuickArraySubmit);
+  }
+  if (elements.quickArrayClearBtn) {
+    elements.quickArrayClearBtn.addEventListener('click', handleQuickArrayClear);
+  }
+  if (elements.quickArrayPasteBtn) {
+    elements.quickArrayPasteBtn.addEventListener('click', handleQuickArrayPaste);
+  }
+  if (elements.quickArrayInput) {
+    elements.quickArrayInput.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        handleQuickArraySubmit();
+      }
+    });
+  }
 
   // Simulación
   if (elements.simulationForm) elements.simulationForm.addEventListener('submit', handleSimulationUpload);

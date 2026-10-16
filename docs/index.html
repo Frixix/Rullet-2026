@@ -279,6 +279,39 @@
               <button type="button" class="btn primary btn--large" id="submitNumBtn">
                 Confirmar Tirada [Enter]
               </button>
+
+              <!-- ── APARTADO DE PEGAR ARREGLO RÁPIDO (ENTRADA SAGAZ) ── -->
+              <div class="quick-array-card" id="quickArrayCard">
+                <div class="quick-array-card__header">
+                  <div class="quick-array-title-wrap">
+                    <span class="quick-array-icon">⚡</span>
+                    <strong class="quick-array-title">Carga Rápida de Array Copiado</strong>
+                  </div>
+                  <span class="quick-array-badge">Entrada Sagaz</span>
+                </div>
+                <p class="quick-array-desc">
+                  Pega directamente tu secuencia (ej. <code>[0, 36, 4, 6, 32, ...]</code>) para procesarla de inmediato sin crear archivos .txt.
+                </p>
+                <div class="quick-array-input-row">
+                  <textarea
+                    id="quickArrayInput"
+                    class="quick-array-textarea"
+                    placeholder="Pega aquí tu array, ej: [0, 36, 4, 6, 32, 21, 32, 10, 35, 29, 7, 23, 1, 23, 1, 23, 0, 21, 8, 12, 12, 4, 16, 19, 23, 0, 15,]"
+                    rows="2"
+                  ></textarea>
+                </div>
+                <div class="quick-array-actions">
+                  <button type="button" class="btn primary" id="quickArraySubmitBtn">
+                    ⚡ Procesar Array
+                  </button>
+                  <button type="button" class="btn ghost btn--action" id="quickArrayPasteBtn" title="Pegar desde el portapapeles">
+                    📋 Pegar
+                  </button>
+                  <button type="button" class="btn ghost btn--action" id="quickArrayClearBtn" title="Limpiar caja">
+                    ✕ Limpiar
+                  </button>
+                </div>
+              </div>
             </div>
           </article>
         </section>

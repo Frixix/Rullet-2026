@@ -988,6 +988,114 @@ body {
   color: var(--text-secondary);
 }
 
+/* ── APARTADO DE PEGAR ARREGLO RÁPIDO (ENTRADA SAGAZ) ── */
+.quick-array-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 1.1rem 1.2rem;
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  transition: border-color var(--transition-fast);
+}
+
+.quick-array-card:hover {
+  border-color: var(--border-medium);
+}
+
+.quick-array-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.quick-array-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.quick-array-icon {
+  font-size: 1rem;
+}
+
+.quick-array-title {
+  font-size: 0.88rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #ffffff;
+}
+
+.quick-array-badge {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.25rem 0.65rem;
+  border-radius: 9999px;
+  background: var(--accent-volt-subtle);
+  border: 1px solid var(--accent-volt-border);
+  color: var(--accent-volt);
+}
+
+.quick-array-desc {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.quick-array-desc code {
+  color: var(--text-secondary);
+  background: var(--bg-card);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.quick-array-input-row {
+  width: 100%;
+}
+
+.quick-array-textarea {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border-medium);
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: #ffffff;
+  resize: vertical;
+  min-height: 52px;
+  outline: none;
+  transition: all var(--transition-fast);
+}
+
+.quick-array-textarea:focus {
+  border-color: var(--accent-volt);
+  box-shadow: 0 0 10px rgba(204, 255, 0, 0.2);
+}
+
+.quick-array-textarea::placeholder {
+  color: #52525b;
+}
+
+.quick-array-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.btn--action {
+  padding: 0.6rem 0.95rem;
+  font-size: 0.78rem;
+}
+
 /* ════════════════════════════════════════════
    ESTADÍSTICAS & HISTORIAL
    ════════════════════════════════════════════ */
