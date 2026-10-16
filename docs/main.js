@@ -1012,8 +1012,8 @@ const renderBalanceChart = () => {
   ctx.rect(PAD_LEFT, PAD_TOP, chartWidth, Math.max(0, yZero - PAD_TOP));
   ctx.clip();
   const gradPos = ctx.createLinearGradient(0, PAD_TOP, 0, yZero);
-  gradPos.addColorStop(0, 'rgba(0, 230, 118, 0.35)');
-  gradPos.addColorStop(1, 'rgba(0, 230, 118, 0.04)');
+  gradPos.addColorStop(0, 'rgba(34, 197, 94, 0.15)');
+  gradPos.addColorStop(1, 'rgba(34, 197, 94, 0.01)');
   ctx.fillStyle = gradPos;
   ctx.fill(areaPath);
   ctx.restore();
@@ -1024,55 +1024,48 @@ const renderBalanceChart = () => {
   ctx.rect(PAD_LEFT, yZero, chartWidth, Math.max(0, (PAD_TOP + chartHeight) - yZero));
   ctx.clip();
   const gradNeg = ctx.createLinearGradient(0, yZero, 0, PAD_TOP + chartHeight);
-  gradNeg.addColorStop(0, 'rgba(255, 26, 78, 0.04)');
-  gradNeg.addColorStop(1, 'rgba(255, 26, 78, 0.35)');
+  gradNeg.addColorStop(0, 'rgba(239, 68, 68, 0.01)');
+  gradNeg.addColorStop(1, 'rgba(239, 68, 68, 0.15)');
   ctx.fillStyle = gradNeg;
   ctx.fill(areaPath);
   ctx.restore();
 
-  // ── Línea de equity ───────────────────────────────────────────
+  // ── Línea de equity (Blanco Stark Minimalista) ──────────────────
   ctx.beginPath();
   visibleTimeline.forEach((e, i) => {
     const x = toX(i), y = toY(e.close);
     i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
   });
-  const lineGrad = ctx.createLinearGradient(0, PAD_TOP, 0, PAD_TOP + chartHeight);
-  lineGrad.addColorStop(0,   '#00f5ff');
-  lineGrad.addColorStop(0.5, '#00e676');
-  lineGrad.addColorStop(1,   '#ff1a4e');
-  ctx.strokeStyle = lineGrad;
-  ctx.lineWidth   = 2.5;
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth   = 2;
   ctx.lineJoin    = 'round';
   ctx.stroke();
 
-  // ── Puntos de eventos (martingala win / loss) ─────────────────
+  // ── Puntos de eventos (Win / Loss) ─────────────────────────────
   visibleTimeline.forEach((entry, i) => {
     if (!entry.tipo) return;
     const x     = toX(i);
     const y     = toY(entry.close);
     const isWin = entry.tipo === 'acierto';
-    const dotColor = isWin ? '#00e676' : '#ff1a4e';
+    const dotColor = isWin ? '#22c55e' : '#ef4444';
 
-    // Halo
-    const glow = ctx.createRadialGradient(x, y, 0, x, y, 12);
-    glow.addColorStop(0, isWin ? 'rgba(0, 230, 118, 0.5)' : 'rgba(255, 26, 78, 0.5)');
-    glow.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = glow;
-    ctx.beginPath(); ctx.arc(x, y, 12, 0, Math.PI * 2); ctx.fill();
-
-    // Círculo relleno
-    ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2);
-    ctx.fillStyle   = dotColor; ctx.fill();
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+    // Círculo nítido sin halos exagerados
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.fillStyle   = dotColor;
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth   = 1.5;
+    ctx.stroke();
 
     // Delta encima del punto
     const diff  = entry.close - entry.open;
     const label = (diff >= 0 ? '+' : '') + '$' + Math.abs(Math.round(diff));
-    ctx.fillStyle     = isWin ? '#69f0ae' : '#ffa0b4';
+    ctx.fillStyle     = isWin ? '#4ade80' : '#f87171';
     ctx.font          = 'bold 9px "JetBrains Mono", monospace';
     ctx.textAlign     = 'center';
     ctx.textBaseline  = 'bottom';
-    ctx.fillText(label, x, y - 9);
+    ctx.fillText(label, x, y - 7);
   });
 
   // ── Eje X ─────────────────────────────────────────────────────
